@@ -1,0 +1,33 @@
+{
+  "name": "agent-guardrails-static",
+  "description": "Files, manifest and docs that must exist for the Agent Guardrails template.",
+  "jsonAssertions": [
+    { "file": "package.json", "path": "packageManager", "equals": "yarn@3.2.3" },
+    { "file": "template.json", "path": "name", "equals": "agent-guardrails" },
+    { "file": "template.json", "path": "create-scaffold-hbar.capabilities.solidityFramework", "equals": ["foundry"] }
+  ],
+  "fileAssertions": {
+    "required": [
+      "README.md",
+      "AGENTS.md",
+      "LICENCE",
+      "template.json",
+      "packages/foundry/contracts/AgentVault.sol",
+      "packages/foundry/contracts/AgentVaultFactory.sol",
+      "packages/foundry/test/AgentVault.t.sol",
+      "packages/foundry/test/fork/AgentVaultFork.t.sol",
+      "packages/agent/src/plugin/index.ts",
+      "packages/agent/src/claude-toolkit.ts",
+      "packages/agent/.env.example",
+      "packages/nextjs/app/vault/[address]/page.tsx",
+      "packages/nextjs/app/api/health/route.ts",
+      ".harness/spec.yaml",
+      ".harness/prd.md"
+    ],
+    "forbidden": [".env", "packages/nextjs/.env", "packages/foundry/.env", "packages/agent/.env", "packages/hardhat"]
+  },
+  "textAssertions": [
+    { "file": "README.md", "contains": ["npm create scaffold-hbar@latest", "yarn agent:setup", "yarn agent:demo", "hashscan.io/testnet"] },
+    { "file": "AGENTS.md", "contains": ["AgentVault", "tinybars", "yarn foundry:test"] }
+  ]
+}

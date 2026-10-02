@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (with Foundry libraries)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.18.3
+          cache: yarn
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Lint (ESLint, forge fmt, prettier, tsc)
+        run: yarn lint
+
+      - name: Contract tests
+        run: yarn foundry:test
+
+      - name: Contract tests against live Hedera testnet (Chainlink feed)
+        run: yarn foundry:test:testnet --match-path "test/fork/*"
+
+      - name: Agent tests
+        run: yarn agent:test
+
+      - name: Frontend tests
+        run: yarn next:test
+
+      - name: Build
+        run: yarn next:build

@@ -1,0 +1,45 @@
+{
+  "name": "agent-guardrails-acceptance",
+  "assertions": [
+    {
+      "id": "C1",
+      "journey": "landing",
+      "route": "/",
+      "severity": "critical",
+      "statement": "The landing page explains the three lanes (Instant, Timelock, Approval) and shows a live Chainlink HBAR/USD price.",
+      "howToVerify": "Open /. Confirm three lane cards are visible and a price like '1 ℏ = $0.0…' with 'Chainlink' appears near the top.",
+      "walletRequired": false,
+      "verifiableWithoutCredentials": true
+    },
+    {
+      "id": "C2",
+      "journey": "create-vault",
+      "route": "/",
+      "severity": "critical",
+      "statement": "A connected owner can create a funded vault and open its dashboard.",
+      "howToVerify": "Connect the burner wallet, scroll to 'Your vaults', enter 5 and click 'Create with ℏ'. A new tile appears; clicking it opens /vault/<address> showing a balance of about 5 ℏ.",
+      "walletRequired": true,
+      "executableWithTestSigner": true
+    },
+    {
+      "id": "C3",
+      "journey": "authorise-agent",
+      "route": "/vault/[address]",
+      "severity": "major",
+      "statement": "The owner can authorise an agent with USD limits and the card shows the worst-case daily exposure.",
+      "howToVerify": "On the vault page fill 'Authorise an agent' with any 0x address and the default limits, submit, and confirm an agent card with 'Worst case per day' appears.",
+      "walletRequired": true,
+      "executableWithTestSigner": true
+    },
+    {
+      "id": "C4",
+      "journey": "kill-switch",
+      "route": "/vault/[address]",
+      "severity": "major",
+      "statement": "The owner can pause and resume all agents.",
+      "howToVerify": "Click 'Pause all agents'; a 'Paused' badge appears. Click 'Resume all agents'; it disappears.",
+      "walletRequired": true,
+      "executableWithTestSigner": true
+    }
+  ]
+}

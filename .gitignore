@@ -1,0 +1,37 @@
+# dependencies
+node_modules
+
+# yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# eslint
+.eslintcache
+
+# misc
+.DS_Store
+
+# IDE
+.vscode
+.idea
+
+# cli
+dist
+
+.env
+
+# hedera-harness (project-centric)
+.harness/runs/
+.harness/runtime/
+.harness/cache/
+.harness/skills/
+.skill-cache/
+.harness-skills/
+.harness-context/
+
+# planning notes kept out of the template
+PLAN.md

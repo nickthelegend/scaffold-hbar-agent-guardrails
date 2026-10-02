@@ -1,0 +1,72 @@
+{
+  "name": "agent-guardrails",
+  "description": "On-chain, USD-denominated spending policies for AI agents: Chainlink-priced limits, self-scheduled timelocks via the Hedera Schedule Service, HCS intent logs, and a Hedera Agent Kit plugin with a Claude agent.",
+  "version": "0.1.0",
+  "create-scaffold-hbar": {
+    "capabilities": {
+      "frontend": ["nextjs-app"],
+      "solidityFramework": ["foundry"],
+      "packageManager": ["yarn"]
+    },
+    "defaults": {
+      "frontend": "nextjs-app",
+      "solidityFramework": "foundry",
+      "packageManager": "yarn"
+    },
+    "requirements": {
+      "node": ">=20.18.3"
+    },
+    "envVars": [
+      {
+        "key": "OWNER_PRIVATE_KEY",
+        "description": "Only for `yarn agent:setup`: ECDSA key of a funded testnet account that will own the demo vault. Pass it inline; never commit it."
+      },
+      {
+        "key": "ANTHROPIC_API_KEY",
+        "description": "Only for `yarn agent:chat` (or run `ant auth login`). Agent settings live in packages/agent/.env, written by `yarn agent:setup`."
+      }
+    ],
+    "outro": {
+      "sections": [
+        {
+          "steps": [
+            {
+              "text": "AgentVault lets AI agents spend HBAR under USD limits the contract enforces. The dashboard works against the live testnet factory out of the box."
+            }
+          ]
+        },
+        {
+          "title": "Try it",
+          "steps": [
+            {
+              "label": "Run the contract tests (unit + live Chainlink fork)",
+              "command": "{run:foundry:test} && {run:foundry:test:testnet}"
+            },
+            {
+              "label": "Start the owner dashboard",
+              "command": "{run:next:dev}"
+            },
+            {
+              "label": "Fund a testnet account at the faucet, then bootstrap a vault, an agent and an HCS intent topic",
+              "url": "https://portal.hedera.com/faucet"
+            },
+            {
+              "command": "OWNER_PRIVATE_KEY=0x... {run:agent:setup}"
+            },
+            {
+              "label": "Watch an agent hit all three lanes (instant, timelock, approval), with no LLM needed",
+              "command": "{run:agent:demo} --wait"
+            },
+            {
+              "label": "Chat with a Claude agent that can only spend through the vault",
+              "command": "{run:agent:chat}"
+            },
+            {
+              "text": "Deploy your own factory with {run:foundry:deploy} --network hedera_testnet. README.md walks through the architecture."
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

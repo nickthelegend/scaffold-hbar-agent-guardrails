@@ -1,0 +1,41 @@
+{
+  "name": "@sh/agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Hedera Agent Kit plugin + Claude agent that spends from an AgentVault under on-chain guardrails",
+  "main": "src/index.ts",
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "chat": "tsx src/cli/chat.ts",
+    "demo": "tsx src/cli/demo.ts",
+    "format": "prettier --write src test scripts",
+    "lint": "tsc --noEmit && prettier --check src test scripts",
+    "setup": "tsx src/cli/setup.ts",
+    "sync-abi": "node scripts/sync-abi.mjs",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "@hashgraph/hedera-agent-kit": "^4.1.0",
+    "@hiero-ledger/sdk": "^2.86.2",
+    "dotenv": "^16.4.5",
+    "viem": "2.39.0",
+    "zod": "3.25.76",
+    "zod-to-json-schema": "3.25.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.8",
+    "prettier": "^3.5.3",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.2.4"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./abi": "./src/abi.ts",
+    "./intent": "./src/intent.ts",
+    "./units": "./src/units.ts",
+    "./network": "./src/network.ts"
+  }
+}

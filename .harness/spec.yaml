@@ -1,0 +1,39 @@
+schemaVersion: 2
+
+name: agent-guardrails
+description: >
+  AgentVault: on-chain, USD-denominated spending policies for AI agents on Hedera. Chainlink HBAR/USD prices every
+  payment, over-limit payments are timelocked and executed by the vault's own Hedera Schedule Service call, agents
+  log their reasoning to HCS, and a Hedera Agent Kit plugin plus a Claude agent spend through the vault.
+
+agent: claude
+
+baseline:
+  commands:
+    - name: install
+      command: yarn install
+    - name: contracts
+      command: yarn foundry:test
+    - name: build
+      command: yarn next:build
+
+validators:
+  playwright: .harness/validators/playwright-smoke.yaml
+
+contract: .harness/acceptance-contract.json
+validator:
+  enabled: true
+
+# Tier 3.5: an ephemeral funded testnet signer runs the real on-chain flow (create vault, authorise,
+# pay through each lane) and the harness verifies the effects on the mirror node.
+chainValidation:
+  enabled: true
+  network: testnet
+  operator:
+    accountIdEnv: HEDERA_OPERATOR_ID
+    privateKeyEnv: HEDERA_OPERATOR_KEY
+  fundingHbar: 30
+  sweepBack: true
+  expose:
+    browserLocalStorageKey: burnerWallet.pk
+    envVars: [OWNER_PRIVATE_KEY]
