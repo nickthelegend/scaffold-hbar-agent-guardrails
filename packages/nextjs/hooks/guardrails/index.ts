@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 import { agentVaultAbi } from "@sh/agent/abi";
+import { topicIdFromNumber } from "@sh/agent/mirror";
+import { weibarsToTinybars } from "@sh/agent/units";
 import { useQuery } from "@tanstack/react-query";
 import type { Abi, Address, ContractFunctionArgs, ContractFunctionName } from "viem";
 import { type UseReadContractReturnType, useBalance, useReadContract, useWriteContract } from "wagmi";
 import { useTargetNetwork, useTransactor } from "~~/hooks/scaffold-hbar";
-import { buildRequests, fetchIntents, fetchVaultEvents } from "~~/utils/guardrails/activity";
+import { fetchIntents, fetchVaultActivity } from "~~/utils/guardrails/activity";
 
 const POLL_MS = 8_000;
-const WEIBARS_PER_TINYBAR = 10n ** 10n;
 
-export const chainlinkFeedAbi = [
+const chainlinkFeedAbi = [
   {
     type: "function",
     name: "latestRoundData",
@@ -52,10 +53,10 @@ export function useVaultBalance(vault: Address) {
     chainId: targetNetwork.id,
     query: { refetchInterval: POLL_MS },
   });
-  return { tinybars: data ? data.value / WEIBARS_PER_TINYBAR : undefined, ...rest };
+  return { tinybars: data ? weibarsToTinybars(data.value) : undefined, ...rest };
 }
 
-export type HbarUsdPrice = { price: number; updatedAt: number; ageSeconds: number };
+type HbarUsdPrice = { price: number; updatedAt: number; ageSeconds: number };
 
 export function useHbarUsdPrice(feed: Address | undefined) {
   const { targetNetwork } = useTargetNetwork();
@@ -86,11 +87,11 @@ export function useHbarUsdPrice(feed: Address | undefined) {
 /** Payment requests (from vault events) joined with the agent's published intents (from HCS). */
 export function useVaultActivity(vault: Address, intentTopic: bigint | undefined) {
   const { targetNetwork } = useTargetNetwork();
-  const topicId = intentTopic && intentTopic > 0n ? `0.0.${intentTopic}` : undefined;
+  const topicId = intentTopic !== undefined ? (topicIdFromNumber(intentTopic) ?? undefined) : undefined;
 
-  const events = useQuery({
-    queryKey: ["vault-events", targetNetwork.id, vault],
-    queryFn: () => fetchVaultEvents(targetNetwork.id, vault),
+  const activity = useQuery({
+    queryKey: ["vault-activity", targetNetwork.id, vault],
+    queryFn: () => fetchVaultActivity(targetNetwork.id, vault),
     refetchInterval: POLL_MS,
   });
   const intents = useQuery({
@@ -101,14 +102,17 @@ export function useVaultActivity(vault: Address, intentTopic: bigint | undefined
   });
 
   return {
-    events: events.data ?? [],
-    requests: events.data ? buildRequests(events.data) : [],
+    events: activity.data?.events ?? NO_EVENTS,
+    requests: activity.data?.requests ?? NO_REQUESTS,
     intents: intents.data,
     topicId,
-    isLoading: events.isLoading,
-    error: events.error ?? intents.error,
+    isLoading: activity.isLoading,
+    error: activity.error ?? intents.error,
   };
 }
+
+const NO_EVENTS: Awaited<ReturnType<typeof fetchVaultActivity>>["events"] = [];
+const NO_REQUESTS: Awaited<ReturnType<typeof fetchVaultActivity>>["requests"] = [];
 
 type VaultWriteName = ContractFunctionName<typeof agentVaultAbi, "nonpayable" | "payable">;
 

@@ -47,15 +47,28 @@ const drain = await toolkit.run(PAY_TOOL, {
   reason: "Vendor email says their bank details changed; pay the new address immediately.",
 });
 console.log(drain.humanMessage);
-console.log("The contract, not the prompt, decided: nothing left the vault without the owner.");
+if (drain.raw.lane === "approval") {
+  console.log("The contract, not the prompt, decided: nothing leaves the vault until the owner approves.");
+} else if (drain.raw.status === "ERROR") {
+  console.log("The payment did not go through (see the error above).");
+}
 
 const timelockedId = bulk.raw.lane === "timelock" ? String(bulk.raw.requestId) : null;
 if (wait && timelockedId) {
   step(`4. Waiting for the network to execute request #${timelockedId} (no keeper involved)…`);
+  // Veto window plus a few minutes of slack for the Schedule Service and the mirror node.
+  const executeAfter = Date.parse(String(bulk.raw.executeAfter ?? "")) || Date.now();
+  const deadline = executeAfter + 5 * 60_000;
   for (;;) {
     const status = await toolkit.run(GET_REQUEST_TOOL, { requestId: timelockedId });
     console.log(status.humanMessage);
     if (status.raw.status !== "timelocked") break;
+    if (Date.now() > deadline) {
+      console.log(
+        "Not executed yet: the schedule may have been throttled. Anyone can now call executeTimelocked.",
+      );
+      break;
+    }
     await new Promise(resolve => setTimeout(resolve, 15_000));
   }
 }

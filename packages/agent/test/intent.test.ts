@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { encodeIntent, hashIntent, MAX_REASON_LENGTH, type Intent } from "../src/intent";
+import { encodeIntent, hashIntent, MAX_INTENT_BYTES, type Intent } from "../src/intent";
 import { formatUsd, hbarToTinybars, hbarToWeibars, tinybarsToHbar, usdToMicros } from "../src/units";
 import { AGENT, MERCHANT, VAULT } from "./fakes";
 
@@ -25,10 +25,16 @@ describe("intent encoding", () => {
     expect(hashIntent(encodeIntent(upper))).toBe(hashIntent(encodeIntent(intent)));
   });
 
-  it("caps the reason so the message fits a single 1 KiB HCS message", () => {
-    const message = encodeIntent({ ...intent, reason: "x".repeat(5_000) });
-    expect(JSON.parse(message).reason).toHaveLength(MAX_REASON_LENGTH);
-    expect(new TextEncoder().encode(message).length).toBeLessThanOrEqual(1024);
+  it.each([
+    ["ASCII", "x".repeat(5_000)],
+    ["multi-byte", "支付".repeat(1_000)],
+    ["emoji", "☕️🚀".repeat(500)],
+    ["characters JSON escapes", '"\\\n'.repeat(1_000)],
+  ])("fits %s reasons into a single 1 KiB HCS message", (_, reason) => {
+    const message = encodeIntent({ ...intent, reason });
+    expect(new TextEncoder().encode(message).length).toBeLessThanOrEqual(MAX_INTENT_BYTES);
+    expect(JSON.parse(message).reason.length).toBeGreaterThan(0);
+    expect(reason.startsWith(JSON.parse(message).reason)).toBe(true);
   });
 });
 

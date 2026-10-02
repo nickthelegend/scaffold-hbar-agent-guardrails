@@ -2,12 +2,10 @@
 
 import type { Address, Hex } from "viem";
 import { LaneBadge, StateLabel } from "~~/components/guardrails/Badges";
-import { useNow, useVaultWrite } from "~~/hooks/guardrails";
+import { useNow, useVaultRead, useVaultWrite } from "~~/hooks/guardrails";
 import { useTargetNetwork } from "~~/hooks/scaffold-hbar";
 import type { IntentRecord, PaymentRequest } from "~~/utils/guardrails/activity";
 import { entityIdFromAddress, formatDuration, formatHbar, formatUsd, shortHex } from "~~/utils/guardrails/format";
-
-const APPROVAL_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 export const RequestsTable = ({
   vault,
@@ -66,11 +64,15 @@ const RequestRow = ({
   const explorer = targetNetwork.blockExplorers?.default.url;
   const now = Math.floor(useNow() / 1000);
   const { write, isPending } = useVaultWrite(vault);
+  const { data: approvalTtl } = useVaultRead(vault, "APPROVAL_TTL");
 
   const secondsLeft = request.executeAfter ? request.executeAfter - now : undefined;
   const windowOpen = request.state === "timelocked" && secondsLeft !== undefined && secondsLeft > 0;
   const overdue = request.state === "timelocked" && secondsLeft !== undefined && secondsLeft <= 0;
-  const approvalExpired = request.state === "awaitingApproval" && now > request.requestedAt + APPROVAL_TTL_SECONDS;
+  const approvalExpired =
+    request.state === "awaitingApproval" &&
+    approvalTtl !== undefined &&
+    now > request.requestedAt + Number(approvalTtl);
 
   return (
     <li className="rounded-box border border-base-300 bg-base-100 p-4">
@@ -79,7 +81,7 @@ const RequestRow = ({
         <LaneBadge lane={request.lane} />
         <span className="font-semibold tabular-nums">{formatHbar(request.amount)}</span>
         <span className="text-sm text-base-content/70 tabular-nums">
-          {request.usdValue > 0n ? formatUsd(request.usdValue) : "price unavailable"}
+          {request.lane === "approval" && request.usdValue === 0n ? "no usable price" : formatUsd(request.usdValue)}
         </span>
         <span className="text-sm">
           → <span className="font-mono">{shortHex(request.to)}</span>

@@ -5,12 +5,15 @@ import {
   http,
   type Account,
   type Address,
+  type Chain,
   type Hex,
   type PublicClient,
+  type Transport,
   type WalletClient,
 } from "viem";
 import { agentVaultAbi } from "./abi";
 import { hederaChain, type HederaNetwork } from "./network";
+import { weibarsToTinybars } from "./units";
 
 /** Mirrors `AgentVault.Lane`. */
 export const LANES = ["instant", "timelock", "approval"] as const;
@@ -44,7 +47,6 @@ export type PolicySnapshot = {
   worstCaseDailyExposureUsd: bigint;
   vaultBalanceTinybars: bigint;
   paused: boolean;
-  intentTopic: bigint;
 };
 
 export type PaymentRequest = {
@@ -61,23 +63,25 @@ export type PaymentRequest = {
   schedule: Address;
 };
 
-export type PayResult = { id: bigint; lane: Lane; usdValue: bigint; txHash: Hex };
+export type PayResult = { id: bigint; lane: Lane; usdValue: bigint; executeAfter: number; txHash: Hex };
 
 /** The vault operations an agent needs; implemented over JSON-RPC below and faked in tests. */
 export interface VaultGateway {
   readonly address: Address;
   readonly agent: Address;
   snapshot(): Promise<PolicySnapshot>;
-  isAllowedRecipient(to: Address): Promise<boolean>;
-  quoteUsd(amountTinybars: bigint): Promise<{ ok: boolean; usd: bigint }>;
+  /** HCS topic number for intents, 0n when the owner has not set one. */
+  intentTopic(): Promise<bigint>;
+  /** Simulates `pay` so policy reverts (paused vault, revoked agent) surface before anything is published. */
+  preview(to: Address, amountTinybars: bigint, intentHash: Hex): Promise<Lane>;
   pay(to: Address, amountTinybars: bigint, intentHash: Hex): Promise<PayResult>;
   getRequest(id: bigint): Promise<PaymentRequest>;
 }
 
 export class RpcVaultGateway implements VaultGateway {
   readonly agent: Address;
-  private readonly publicClient: PublicClient;
-  private readonly walletClient: WalletClient;
+  private readonly publicClient: PublicClient<Transport, Chain>;
+  private readonly walletClient: WalletClient<Transport, Chain, Account>;
 
   constructor(
     readonly address: Address,
@@ -91,55 +95,51 @@ export class RpcVaultGateway implements VaultGateway {
     this.walletClient = createWalletClient({ chain, transport: http(), account });
   }
 
-  private read<T>(functionName: string, args: readonly unknown[] = []): Promise<T> {
-    return this.publicClient.readContract({
-      address: this.address,
-      abi: agentVaultAbi,
-      functionName,
-      args,
-    } as never) as Promise<T>;
+  private get contract() {
+    return { address: this.address, abi: agentVaultAbi } as const;
   }
 
   async snapshot(): Promise<PolicySnapshot> {
-    const [policyTuple, remaining, pending, worstCase, balance, paused, intentTopic] = await Promise.all([
-      this.read<readonly [boolean, boolean, number, bigint, bigint, bigint]>("policies", [this.agent]),
-      this.read<bigint>("remainingDailyUsd", [this.agent]),
-      this.read<bigint>("pendingTimelockUsd", [this.agent]),
-      this.read<bigint>("worstCaseDailyExposureUsd", [this.agent]),
-      // eth_getBalance answers in weibars; the vault reasons in tinybars.
-      this.publicClient.getBalance({ address: this.address }).then(weibars => weibars / 10n ** 10n),
-      this.read<boolean>("paused"),
-      this.read<bigint>("intentTopic"),
+    const { contract, publicClient, agent } = this;
+    const [policy, remaining, pending, worstCase, weibars, paused] = await Promise.all([
+      publicClient.readContract({ ...contract, functionName: "policies", args: [agent] }),
+      publicClient.readContract({ ...contract, functionName: "remainingDailyUsd", args: [agent] }),
+      publicClient.readContract({ ...contract, functionName: "pendingTimelockUsd", args: [agent] }),
+      publicClient.readContract({ ...contract, functionName: "worstCaseDailyExposureUsd", args: [agent] }),
+      publicClient.getBalance({ address: this.address }),
+      publicClient.readContract({ ...contract, functionName: "paused" }),
     ]);
-    const [active, anyRecipient, vetoWindow, perTxLimitUsd, dailyLimitUsd, timelockCapUsd] = policyTuple;
+    const [active, anyRecipient, vetoWindow, perTxLimitUsd, dailyLimitUsd, timelockCapUsd] = policy;
     return {
       policy: { active, anyRecipient, vetoWindow, perTxLimitUsd, dailyLimitUsd, timelockCapUsd },
       remainingDailyUsd: remaining,
       pendingTimelockUsd: pending,
       worstCaseDailyExposureUsd: worstCase,
-      vaultBalanceTinybars: balance,
+      vaultBalanceTinybars: weibarsToTinybars(weibars),
       paused,
-      intentTopic,
     };
   }
 
-  isAllowedRecipient(to: Address): Promise<boolean> {
-    return this.read<boolean>("isAllowedRecipient", [this.agent, to]);
+  intentTopic(): Promise<bigint> {
+    return this.publicClient.readContract({ ...this.contract, functionName: "intentTopic" });
   }
 
-  async quoteUsd(amountTinybars: bigint): Promise<{ ok: boolean; usd: bigint }> {
-    const [ok, usd] = await this.read<readonly [boolean, bigint]>("quoteUsd", [amountTinybars]);
-    return { ok, usd };
+  async preview(to: Address, amountTinybars: bigint, intentHash: Hex): Promise<Lane> {
+    const { result } = await this.publicClient.simulateContract({
+      ...this.contract,
+      functionName: "pay",
+      args: [to, amountTinybars, intentHash],
+      account: this.account,
+    });
+    return LANES[result[1]];
   }
 
   async pay(to: Address, amountTinybars: bigint, intentHash: Hex): Promise<PayResult> {
-    // Simulate first so policy reverts (paused, not an agent) surface as readable errors before paying gas.
     const { request } = await this.publicClient.simulateContract({
-      address: this.address,
-      abi: agentVaultAbi,
+      ...this.contract,
       functionName: "pay",
       args: [to, amountTinybars, intentHash],
-      account: this.walletClient.account!,
+      account: this.account,
     });
     const txHash = await this.walletClient.writeContract(request);
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
@@ -150,7 +150,13 @@ export class RpcVaultGateway implements VaultGateway {
       try {
         const event = decodeEventLog({ abi: agentVaultAbi, data: log.data, topics: log.topics });
         if (event.eventName === "PaymentRequested") {
-          return { id: event.args.id, lane: LANES[event.args.lane], usdValue: event.args.usdValue, txHash };
+          return {
+            id: event.args.id,
+            lane: LANES[event.args.lane],
+            usdValue: event.args.usdValue,
+            executeAfter: Number(event.args.executeAfter),
+            txHash,
+          };
         }
       } catch {
         // Not a vault event we know; keep scanning.
@@ -161,9 +167,7 @@ export class RpcVaultGateway implements VaultGateway {
 
   async getRequest(id: bigint): Promise<PaymentRequest> {
     const [agent, to, amount, usdValue, createdAt, executeAfter, status, lane, intentHash, schedule] =
-      await this.read<
-        readonly [Address, Address, bigint, bigint, number, number, number, number, Hex, Address]
-      >("requests", [id]);
+      await this.publicClient.readContract({ ...this.contract, functionName: "requests", args: [id] });
     return {
       id,
       agent,

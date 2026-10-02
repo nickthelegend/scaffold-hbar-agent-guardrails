@@ -10,7 +10,6 @@
     ]
   },
   "scripts": {
-    "agent:build": "yarn workspace @sh/agent build",
     "agent:chat": "yarn workspace @sh/agent chat",
     "agent:demo": "yarn workspace @sh/agent demo",
     "agent:format": "yarn workspace @sh/agent format",

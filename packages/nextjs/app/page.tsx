@@ -44,6 +44,10 @@ const Home: NextPage = () => {
   const { data: factory } = useDeployedContractInfo({ contractName: "AgentVaultFactory" });
   const factoryDeployed = Boolean(factory && factory.address !== zeroAddress);
   const { data: feed } = useScaffoldReadContract({ contractName: "AgentVaultFactory", functionName: "hbarUsdFeed" });
+  const { data: maxPriceAge } = useScaffoldReadContract({
+    contractName: "AgentVaultFactory",
+    functionName: "defaultMaxPriceAge",
+  });
 
   return (
     <div className="flex flex-col grow">
@@ -68,7 +72,7 @@ const Home: NextPage = () => {
               <RainbowKitCustomConnectButton />
             )}
             <span className="rounded-full bg-white/10 px-3 py-1">
-              <PriceTicker feed={feed} />
+              <PriceTicker feed={feed} maxAge={maxPriceAge} />
             </span>
           </div>
         </div>
@@ -86,8 +90,8 @@ const Home: NextPage = () => {
           ))}
         </div>
         <p className="text-sm text-base-content/70 m-0">
-          Because the timelock budget refreshes once per veto window, the most an unattended agent can move in a day is
-          bounded and shown up front: <code>dailyLimit + timelockBudget × (24h ÷ vetoWindow)</code>.
+          Because the timelock budget refreshes once per veto window, the most an unattended agent can move in any 24
+          hours is bounded and shown up front: <code>2 × dailyLimit + timelockBudget × (⌊24h ÷ vetoWindow⌋ + 1)</code>.
         </p>
       </section>
 
@@ -146,7 +150,12 @@ const VaultList = ({ owner }: { owner: string }) => {
   const [created, setCreated] = useState<string>();
 
   const create = async () => {
-    const hash = await writeContractAsync({ functionName: "createVault", value: parseEther(fund || "0") });
+    let hash: `0x${string}` | undefined;
+    try {
+      hash = await writeContractAsync({ functionName: "createVault", value: parseEther(fund || "0") });
+    } catch {
+      return; // Rejected or failed; the transactor already showed the reason.
+    }
     if (!hash || !publicClient || !factory) return;
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     for (const log of receipt.logs) {

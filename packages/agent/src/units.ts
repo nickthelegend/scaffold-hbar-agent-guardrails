@@ -16,6 +16,10 @@ export const tinybarsToHbar = (tinybars: bigint): string => formatUnits(tinybars
 /** Value for a JSON-RPC transaction sending `hbar` HBAR. */
 export const hbarToWeibars = (hbar: string | number): bigint => parseUnits(String(hbar), WEIBAR_DECIMALS);
 
+/** `eth_getBalance` answers in weibars; contracts reason in tinybars. */
+export const weibarsToTinybars = (weibars: bigint): bigint =>
+  weibars / 10n ** BigInt(WEIBAR_DECIMALS - TINYBAR_DECIMALS);
+
 export const usdToMicros = (usd: string | number): bigint => parseUnits(String(usd), USD_DECIMALS);
 
 export const formatUsd = (micros: bigint): string => {

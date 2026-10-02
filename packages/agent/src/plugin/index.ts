@@ -133,8 +133,9 @@ class PayTool extends BaseTool<PayParams, NormalisedPay> {
     _context: Context,
   ) {
     const { params, message, intentHash } = prepared;
-    const snapshot = await this.deps.vault.snapshot();
-    const topicId = topicIdFromNumber(snapshot.intentTopic);
+    // Simulate first: a paused vault or revoked agent must not leave an orphan intent on HCS.
+    await this.deps.vault.preview(params.to, params.amountTinybars, intentHash);
+    const topicId = topicIdFromNumber(await this.deps.vault.intentTopic());
 
     let published: PublishedIntent | undefined;
     if (topicId && this.deps.intents) {
@@ -142,23 +143,26 @@ class PayTool extends BaseTool<PayParams, NormalisedPay> {
     }
 
     const result = await this.deps.vault.pay(params.to, params.amountTinybars, intentHash);
+    const executeAfter = result.executeAfter ? new Date(result.executeAfter * 1000).toISOString() : null;
     const raw = {
       requestId: result.id.toString(),
       lane: result.lane,
       to: params.to,
       amountHbar: tinybarsToHbar(params.amountTinybars),
       usdValue: formatUsd(result.usdValue),
+      executeAfter,
       txHash: result.txHash,
       transaction: hashscanTx(this.deps.network, result.txHash),
       intentHash,
       intentTopic: topicId ? hashscanTopic(this.deps.network, topicId) : null,
       intentSequenceNumber: published?.sequenceNumber ?? null,
     };
+    const when = executeAfter ? ` It executes after ${executeAfter} unless vetoed.` : "";
     return {
       raw,
       humanMessage:
         `Payment request #${raw.requestId} for ${raw.amountHbar} HBAR (${raw.usdValue}) to ${raw.to}: ` +
-        `${result.lane.toUpperCase()}. ${LANE_EXPLANATION[result.lane]} Transaction: ${raw.transaction}`,
+        `${result.lane.toUpperCase()}. ${LANE_EXPLANATION[result.lane]}${when} Transaction: ${raw.transaction}`,
     };
   }
 }

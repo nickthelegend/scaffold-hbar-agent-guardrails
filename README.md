@@ -42,8 +42,8 @@ This template moves the policy **on-chain**, next to the money:
 
 - **Limits are in USD, priced live by Chainlink.** Owners think in dollars, not in a volatile token.
 - **Big payments are delayed, not blocked.** A legitimate large purchase still goes through after a veto window, and the network itself executes it via the Hedera Schedule Service. Nothing waits on a keeper bot that might be down.
-- **The blast radius is computable.** The most an agent can move in 24 hours with nobody watching is `dailyLimit + timelockBudget × ⌈24h ÷ vetoWindow⌉`. The contract exposes it (`worstCaseDailyExposureUsd`) and the UI shows it next to each agent.
-- **It fails safe.** If the oracle is stale, reverts, or returns nonsense, payments fall through to manual approval instead of trusting a bad price. (The July 2026 Bonzo Lend exploit came from accepting a manipulated oracle update; this template treats any doubtful price as a reason to ask a human.)
+- **The blast radius is computable.** The most an agent can move in any 24-hour window with nobody watching is `2 × dailyLimit + timelockBudget × (⌊24h ÷ vetoWindow⌋ + 1)`. (Two daily budgets can straddle midnight UTC.) The contract exposes it (`worstCaseDailyExposureUsd`) and the UI shows it next to each agent.
+- **It fails safe.** If the oracle reverts, is stale, or returns a non-positive, absurdly large or future-dated answer, payments fall through to manual approval instead of trusting the price. The USD limits also cap how much a wrong-but-plausible price can cost you, because every lane is bounded.
 
 ## Quickstart
 
@@ -66,7 +66,7 @@ yarn install        # the CLI already ran this unless you passed --skip-install
 ### 2. Run the tests
 
 ```bash
-yarn foundry:test                                    # 28 unit + fuzz tests for AgentVault
+yarn foundry:test                                    # 33 unit + fuzz tests for AgentVault
 yarn foundry:test:testnet --match-path "test/fork/*" # prices against the live Chainlink HBAR/USD feed
 yarn agent:test                                      # Agent Kit plugin, intent hashing, Claude toolkit
 yarn next:test                                       # dashboard activity-feed decoding
@@ -139,16 +139,16 @@ flowchart LR
 `AgentVault.pay(to, amountTinybars, intentHash)`, called by the agent:
 
 1. Rejects anyone without an active policy (`NotAgent`), and everything while the owner has paused the vault.
-2. Prices the amount with `quoteUsd`, which reads Chainlink `latestRoundData()` inside a `try`. A revert, a non-positive answer, an answer from the future, or one older than `maxPriceAge` (default 1 hour) all mean **no usable price**.
+2. Prices the amount with `quoteUsd`, which reads Chainlink `latestRoundData()` inside a `try` and rounds **up**, so dust payments are never free. A revert, a non-positive or absurdly large answer, an answer from the future, or one older than `maxPriceAge` all mean **no usable price**. The default `maxPriceAge` is **3 hours**. The testnet HBAR/USD feed updates on price deviation, and its longest gap between rounds over Sep 30–Oct 2 2026 was about 2h08m, so a 1-hour window would wrongly send quiet-market payments to approval.
 3. Picks a lane:
    - **Instant** if the price is usable, the recipient is allowed, `usd ≤ perTxLimitUsd`, and today's instant spend plus `usd` is within `dailyLimitUsd` (days are UTC).
-   - **Timelock** if the price is usable, the recipient is allowed, the veto window is non-zero, and outstanding timelocked USD plus `usd` is within `timelockCapUsd`. The vault calls `HSS.scheduleCall(address(this), now + vetoWindow, gas, 0, executeTimelocked(id))`.
+   - **Timelock** if the price is usable, the recipient is allowed, the veto window is non-zero, outstanding timelocked USD plus `usd` is within `timelockCapUsd`, and the agent has fewer than `MAX_PENDING_TIMELOCKS` (10) pending. The vault calls `HSS.scheduleCall(address(this), now + vetoWindow, gas, 0, executeTimelocked(id))`.
    - **Approval** otherwise.
-4. Emits `PaymentRequested(id, agent, to, amount, usd, lane, intentHash)`.
+4. Emits `PaymentRequested(id, agent, to, amount, usd, lane, intentHash, executeAfter)`, so the dashboard can show the countdown even when scheduling failed.
 
 ### Why the timelock can't be abused
 
-`timelockCapUsd` caps the **outstanding** timelocked amount, not each payment. A hijacked agent can only queue `timelockCapUsd` per veto window, and the owner sees every queued payment with a countdown and a Veto button. If the owner revokes the agent or removes the recipient during the window, the scheduled execution resolves as **vetoed** instead of paying.
+`timelockCapUsd` caps the **outstanding** timelocked amount, not each payment, and `MAX_PENDING_TIMELOCKS` caps how many are queued. That count matters because each one makes the vault pay for a scheduled transaction, so a hijacked agent can't drain the vault through schedule fees with thousands of dust requests. The owner sees every queued payment with a countdown and a Veto button. The dashboard pages through the vault's full log history, so a flood of junk requests can't push a pending one out of view. Vetoing also deletes the pending Hedera schedule. If the owner revokes the agent or removes the recipient during the window, the scheduled execution resolves as **vetoed** instead of paying. `approve` reverts if the vault can't pay, leaving the request pending rather than silently failing it.
 
 ### Hedera services and integrations used
 
@@ -231,13 +231,13 @@ History comes from the mirror node (`/contracts/{vault}/results/logs`, `/topics/
 
 | Suite | Command | What it proves |
 |---|---|---|
-| Contract unit + fuzz | `yarn foundry:test` | Lane routing, limits, daily reset, timelock scheduling and firing, veto, revoke-as-veto, approvals and expiry, kill switch, missed or failed schedules, insufficient balance, access control, and a fuzz test that instant spend never exceeds the daily limit |
+| Contract unit + fuzz | `yarn foundry:test` | Lane routing, limits, daily reset, rounding, timelock scheduling and firing within its gas limit, veto (and schedule deletion), revoke-as-veto, the pending-timelock cap, approvals and expiry, kill switch, missed, failed or absent Schedule Service, insufficient balance, access control, and a fuzz test that instant spend never exceeds the daily limit |
 | Live testnet fork | `yarn foundry:test:testnet --match-path "test/fork/*"` | `quoteUsd` against the real Chainlink HBAR/USD feed; fail-safe on stale answers |
 | Agent | `yarn agent:test` | Intent canonicalisation and hashing, HCS publish-then-pay ordering, lane messages, account-ID resolution, Agent Kit policy composition, Claude tool schemas |
-| Frontend | `yarn next:test` | Decoding real ABI-encoded logs into request rows, allowlist replay, intent verification |
+| Frontend | `yarn next:test` | Decoding real ABI-encoded logs (served newest-first, as the mirror node does) into request rows, allowlist replay, intent verification |
 | Live end-to-end | `yarn agent:setup && yarn agent:demo --wait` | All three lanes on testnet, including a Schedule Service execution |
 
-Unit tests stand in for the Schedule Service and the price feed at their real addresses (`vm.etch`), because neither exists in a local EVM. The fork test and the live demo run against the real ones.
+Unit tests etch a recording Schedule Service at its real system address (`0x16b`) and use a mock price feed, because neither exists in a local EVM. The fork test and the live demo run against the real ones.
 
 ## Deploying your own
 
@@ -251,17 +251,17 @@ Use `HBAR_USD_FEED=0x... yarn foundry:deploy --network hedera_mainnet` for mainn
 ## Hedera specifics worth knowing
 
 - **Two HBAR units.** Inside contracts, `msg.value` and `address.balance` are **tinybars** (8 decimals). The JSON-RPC relay takes transaction `value` in **weibars** (18 decimals). The vault stores and emits tinybars. Use `hbarToWeibars` when sending and `hbarToTinybars` for `pay` (`packages/agent/src/units.ts`).
-- **Schedule Service capacity.** `scheduleCall` can fail if a second is full. The vault checks `hasScheduleCapacity` and never reverts the payment because of scheduling. It emits `ScheduleFailed`, and `executeTimelocked` stays permissionless after the veto window. The dashboard shows "Execute now" when that happens.
+- **Schedule Service capacity.** `scheduleCall` can fail if a second is full. The vault checks `hasScheduleCapacity` through low-level calls and never reverts the payment because of scheduling. It emits `ScheduleFailed`, and `executeTimelocked` stays permissionless after the veto window. The dashboard shows "Execute now" when that happens.
 - **Scheduled executions are paid for by the vault**, from its HBAR balance, so keep a little headroom above what agents may spend.
 - **`block.timestamp` is the hashgraph consensus timestamp** (median of node clocks). That's why the `block-timestamp` lint is disabled in `foundry.toml`.
-- **HCS messages are capped at 1 KiB** unchunked. Intents truncate the reason to 500 characters, and the canonical encoding keeps the hash reproducible by anyone reading the topic.
+- **HCS messages are capped at 1 KiB** unchunked. Intents trim the reason, by character and never mid-codepoint, until the UTF-8 encoding fits. The canonical encoding keeps the hash reproducible by anyone reading the topic.
 - **Forking Hedera contracts with immutables.** The relay returns runtime bytecode with immutable references zeroed for some contracts, so fork tests should target storage-based contracts (like Chainlink proxies) or use live calls.
 
 ## Security model and limitations
 
 - The **owner** can withdraw, pause, change policies and approve anything. The vault protects owners from agents, not agents from owners.
 - **Approved payments and timelocked executions don't count toward the daily instant budget**, because they were explicitly sanctioned or vetoable.
-- The worst-case bound assumes the owner never reacts. Shorter veto windows mean more exposure per day; the UI shows the exact figure.
+- The worst-case bound assumes the owner never reacts. Shorter veto windows mean more exposure per day; the UI shows the exact figure. It covers payments, not the small HBAR fees the vault pays for (at most 10 pending) scheduled executions.
 - Splitting a payment into many small ones only works within the daily instant limit.
 - HBAR payments only. HTS token payments (e.g. USDC) are the natural next step: price them 1:1 for stablecoins or via a second feed.
 - Not audited. Treat it as a starting point.

@@ -138,9 +138,11 @@ contract AgentVaultTest is Test {
         assertEq(uint8(lane), uint8(AgentVault.Lane.Timelock));
         assertEq(uint8(_status(id)), uint8(AgentVault.Status.Timelocked));
         assertEq(hss.count(), 1);
-        (address to, uint256 expiry,) = hss.scheduled(0);
+        (address to, uint256 expiry, uint256 gasLimit,) = hss.scheduled(0);
         assertEq(to, address(vault));
         assertEq(expiry, block.timestamp + 1 hours);
+        assertEq(gasLimit, vault.SCHEDULE_GAS_LIMIT());
+        assertEq(vault.pendingTimelockCount(agent), 1);
         assertEq(vault.pendingTimelockUsd(agent), 5 * USD);
         assertEq(shop.balance, 0);
     }
@@ -175,6 +177,9 @@ contract AgentVaultTest is Test {
         assertEq(uint8(_status(id)), uint8(AgentVault.Status.Vetoed));
         assertEq(shop.balance, 0);
         assertEq(vault.pendingTimelockUsd(agent), 0);
+        assertEq(vault.pendingTimelockCount(agent), 0);
+        (,,,,,,,,, address schedule) = vault.requests(id);
+        assertTrue(hss.deleted(schedule), "veto should delete the pending Hedera schedule");
     }
 
     function test_timelockCapRoutesToApproval() public {
@@ -239,6 +244,16 @@ contract AgentVaultTest is Test {
 
         assertEq(uint8(_status(id)), uint8(AgentVault.Status.Executed));
         assertEq(stranger.balance, 1 * HBAR);
+    }
+
+    function test_approve_revertsAndStaysPendingWhenVaultIsEmpty() public {
+        (uint256 id,) = _pay(stranger, 1 * HBAR);
+        vm.startPrank(owner);
+        vault.withdraw(owner, address(vault).balance);
+        vm.expectRevert(AgentVault.InsufficientBalance.selector);
+        vault.approve(id);
+        vm.stopPrank();
+        assertEq(uint8(_status(id)), uint8(AgentVault.Status.AwaitingApproval));
     }
 
     function test_stalePriceNeedsApprovalEvenWithinLimits() public {
@@ -325,8 +340,39 @@ contract AgentVaultTest is Test {
     }
 
     function test_worstCaseDailyExposure() public view {
-        // $3 daily + $10 timelock budget refreshed 24 times a day (1h veto window).
-        assertEq(vault.worstCaseDailyExposureUsd(agent), 3 * USD + 10 * USD * 24);
+        // Two daily budgets can straddle midnight; the $10 timelock budget can execute floor(24h/1h)+1 = 25 times.
+        assertEq(vault.worstCaseDailyExposureUsd(agent), 2 * 3 * USD + 10 * USD * 25);
+    }
+
+    function test_quoteUsd_roundsUpSoDustIsNeverFree() public view {
+        (, uint256 usd) = vault.quoteUsd(1); // 1 tinybar = $0.000000001
+        assertEq(usd, 1);
+    }
+
+    function test_quoteUsd_rejectsAbsurdAnswer() public {
+        feed.set(type(int256).max, block.timestamp);
+        (bool ok,) = vault.quoteUsd(HBAR);
+        assertFalse(ok);
+    }
+
+    function test_pendingTimelockCountIsCapped() public {
+        vm.prank(owner);
+        vault.setPolicy(agent, _policy(0, 0, 1_000 * USD, 1 hours, false));
+        for (uint256 i; i < vault.MAX_PENDING_TIMELOCKS(); i++) {
+            (, AgentVault.Lane lane) = _pay(shop, 1 * HBAR);
+            assertEq(uint8(lane), uint8(AgentVault.Lane.Timelock));
+        }
+        (, AgentVault.Lane overflow) = _pay(shop, 1 * HBAR);
+        assertEq(uint8(overflow), uint8(AgentVault.Lane.Approval), "each timelock costs the vault a scheduled tx");
+    }
+
+    function test_missingScheduleService_stillTimelocks() public {
+        vm.etch(HSS_ADDRESS, "");
+        (uint256 id, AgentVault.Lane lane) = _pay(shop, 50 * HBAR);
+        assertEq(uint8(lane), uint8(AgentVault.Lane.Timelock));
+        vm.warp(block.timestamp + 1 hours);
+        vault.executeTimelocked(id);
+        assertEq(shop.balance, 50 * HBAR);
     }
 
     function test_factory_tracksVaultsPerOwner() public view {

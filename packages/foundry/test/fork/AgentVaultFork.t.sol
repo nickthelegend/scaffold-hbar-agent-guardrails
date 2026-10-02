@@ -32,7 +32,7 @@ contract AgentVaultForkTest is Test {
     function test_quoteUsd_tightFreshnessFailsSafe() public {
         AgentVault vault = new AgentVault(address(this), FEED, 0);
         (,,, uint256 updatedAt,) = FEED.latestRoundData();
-        vm.assume(block.timestamp > updatedAt);
+        if (block.timestamp == updatedAt) vm.skip(true); // a zero-second-old answer is legitimately fresh
         (bool ok,) = vault.quoteUsd(1e8);
         assertFalse(ok, "an answer older than maxPriceAge must route payments to approval");
     }

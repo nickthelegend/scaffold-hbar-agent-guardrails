@@ -41,6 +41,19 @@ export const agentVaultAbi = [
   },
   {
     type: "function",
+    name: "MAX_PENDING_TIMELOCKS",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "SCHEDULE_GAS_LIMIT",
     inputs: [],
     outputs: [
@@ -90,6 +103,19 @@ export const agentVaultAbi = [
     ],
     outputs: [],
     stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "feedDecimals",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint8",
+        internalType: "uint8",
+      },
+    ],
+    stateMutability: "view",
   },
   {
     type: "function",
@@ -226,6 +252,25 @@ export const agentVaultAbi = [
       },
     ],
     stateMutability: "nonpayable",
+  },
+  {
+    type: "function",
+    name: "pendingTimelockCount",
+    inputs: [
+      {
+        name: "agent",
+        type: "address",
+        internalType: "address",
+      },
+    ],
+    outputs: [
+      {
+        name: "count",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
   },
   {
     type: "function",
@@ -802,6 +847,12 @@ export const agentVaultAbi = [
         indexed: false,
         internalType: "bytes32",
       },
+      {
+        name: "executeAfter",
+        type: "uint256",
+        indexed: false,
+        internalType: "uint256",
+      },
     ],
     anonymous: false,
   },
@@ -887,6 +938,31 @@ export const agentVaultAbi = [
       },
       {
         name: "allowed",
+        type: "bool",
+        indexed: false,
+        internalType: "bool",
+      },
+    ],
+    anonymous: false,
+  },
+  {
+    type: "event",
+    name: "ScheduleCancelled",
+    inputs: [
+      {
+        name: "id",
+        type: "uint256",
+        indexed: true,
+        internalType: "uint256",
+      },
+      {
+        name: "schedule",
+        type: "address",
+        indexed: false,
+        internalType: "address",
+      },
+      {
+        name: "deleted",
         type: "bool",
         indexed: false,
         internalType: "bool",

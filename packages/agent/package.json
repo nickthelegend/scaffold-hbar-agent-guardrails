@@ -36,6 +36,8 @@
     "./abi": "./src/abi.ts",
     "./intent": "./src/intent.ts",
     "./units": "./src/units.ts",
-    "./network": "./src/network.ts"
+    "./network": "./src/network.ts",
+    "./vault": "./src/vault.ts",
+    "./mirror": "./src/mirror.ts"
   }
 }

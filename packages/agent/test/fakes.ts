@@ -11,7 +11,7 @@ export class FakeVault implements VaultGateway {
   readonly address = VAULT;
   readonly agent = AGENT;
   payments: { to: Address; amountTinybars: bigint; intentHash: Hex }[] = [];
-  intentTopic = 4242n;
+  intentTopic_ = 4242n;
   laneFor: (amountTinybars: bigint) => Lane = () => "instant";
 
   async snapshot(): Promise<PolicySnapshot> {
@@ -29,24 +29,30 @@ export class FakeVault implements VaultGateway {
       worstCaseDailyExposureUsd: 5_765_000_000n,
       vaultBalanceTinybars: 100n * 10n ** 8n,
       paused: false,
-      intentTopic: this.intentTopic,
     };
   }
 
-  async isAllowedRecipient(to: Address) {
-    return to === MERCHANT;
+  previews = 0;
+  paused = false;
+
+  async intentTopic() {
+    return this.intentTopic_;
   }
 
-  async quoteUsd(amountTinybars: bigint) {
-    return { ok: true, usd: amountTinybars / 1000n };
+  async preview(_to: Address, amountTinybars: bigint): Promise<Lane> {
+    this.previews += 1;
+    if (this.paused) throw new Error("IsPaused()");
+    return this.laneFor(amountTinybars);
   }
 
   async pay(to: Address, amountTinybars: bigint, intentHash: Hex): Promise<PayResult> {
     this.payments.push({ to, amountTinybars, intentHash });
+    const lane = this.laneFor(amountTinybars);
     return {
       id: BigInt(this.payments.length),
-      lane: this.laneFor(amountTinybars),
+      lane,
       usdValue: amountTinybars / 1000n,
+      executeAfter: lane === "timelock" ? 1_790_000_300 : 0,
       txHash: `0x${"ab".repeat(32)}`,
     };
   }

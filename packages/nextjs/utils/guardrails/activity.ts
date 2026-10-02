@@ -1,20 +1,26 @@
 import { agentVaultAbi } from "@sh/agent/abi";
 import { hashIntent } from "@sh/agent/intent";
+import { NETWORKS } from "@sh/agent/network";
+import { LANES, type Lane } from "@sh/agent/vault";
 import { type Address, type Hex, decodeEventLog } from "viem";
 import { hedera } from "viem/chains";
 
-export const LANES = ["instant", "timelock", "approval"] as const;
-export type Lane = (typeof LANES)[number];
+export type { Lane };
 export type RequestState = "executed" | "timelocked" | "awaitingApproval" | "vetoed" | "rejected" | "failed";
 
-export const mirrorNodeUrl = (chainId: number) =>
-  chainId === hedera.id ? "https://mainnet-public.mirrornode.hedera.com" : "https://testnet.mirrornode.hedera.com";
+/** Pages of 100 entries fetched per refresh; logs are re-sorted chronologically after fetching. */
+const MAX_PAGES = 50;
+
+const mirrorNodeUrl = (chainId: number) => NETWORKS[chainId === hedera.id ? "mainnet" : "testnet"].mirrorNode;
 
 export type MirrorLog = {
   data: Hex;
   topics: Hex[];
   transaction_hash: Hex;
+  /** Consensus timestamp, "seconds.nanoseconds". */
   timestamp: string;
+  /** Position of the log within its transaction. */
+  index: number;
 };
 
 export type VaultEvent = {
@@ -35,9 +41,9 @@ export type PaymentRequest = {
   requestedAt: number;
   requestTx: Hex;
   state: RequestState;
+  executeAfter?: number;
   settledTx?: Hex;
   schedule?: Address;
-  executeAfter?: number;
 };
 
 export type IntentRecord = {
@@ -47,10 +53,20 @@ export type IntentRecord = {
   consensusTimestamp: string;
 };
 
-/** Decodes AgentVault logs from the mirror node, skipping anything that is not a vault event. */
+/** Total order of logs: consensus timestamp (to the nanosecond), then position within the transaction. */
+const logOrder = (log: MirrorLog) => {
+  const [seconds, nanos = "0"] = log.timestamp.split(".");
+  return BigInt(seconds) * 1_000_000_000n + BigInt(nanos.padEnd(9, "0"));
+};
+
+/** Decodes AgentVault logs in chronological order, skipping anything that is not a vault event. */
 export function decodeVaultLogs(logs: MirrorLog[]): VaultEvent[] {
+  const ordered = [...logs].sort((a, b) => {
+    const delta = logOrder(a) - logOrder(b);
+    return delta !== 0n ? (delta < 0n ? -1 : 1) : a.index - b.index;
+  });
   const events: VaultEvent[] = [];
-  for (const log of logs) {
+  for (const log of ordered) {
     try {
       const decoded = decodeEventLog({
         abi: agentVaultAbi,
@@ -77,17 +93,17 @@ const SETTLEMENT: Record<string, RequestState> = {
   PaymentFailed: "failed",
 };
 
-/** Folds the event stream into one row per payment request, newest first. */
+/** Folds the chronological event stream into one row per payment request, newest first. */
 export function buildRequests(events: VaultEvent[]): PaymentRequest[] {
   const byId = new Map<bigint, PaymentRequest>();
-  const chronological = [...events].sort((a, b) => a.timestamp - b.timestamp);
 
-  for (const event of chronological) {
+  for (const event of events) {
     const id = event.args.id as bigint | undefined;
     if (id === undefined) continue;
 
     if (event.eventName === "PaymentRequested") {
       const lane = LANES[Number(event.args.lane)];
+      const executeAfter = Number(event.args.executeAfter ?? 0);
       byId.set(id, {
         id,
         agent: event.args.agent as Address,
@@ -99,7 +115,7 @@ export function buildRequests(events: VaultEvent[]): PaymentRequest[] {
         requestedAt: event.timestamp,
         requestTx: event.txHash,
         state: lane === "timelock" ? "timelocked" : lane === "approval" ? "awaitingApproval" : "executed",
-        settledTx: lane === "instant" ? event.txHash : undefined,
+        executeAfter: executeAfter || undefined,
       });
       continue;
     }
@@ -108,7 +124,6 @@ export function buildRequests(events: VaultEvent[]): PaymentRequest[] {
     if (!request) continue;
     if (event.eventName === "ExecutionScheduled") {
       request.schedule = event.args.schedule as Address;
-      request.executeAfter = Number(event.args.executeAfter);
     } else if (event.eventName in SETTLEMENT) {
       request.state = SETTLEMENT[event.eventName];
       request.settledTx = event.txHash;
@@ -117,10 +132,28 @@ export function buildRequests(events: VaultEvent[]): PaymentRequest[] {
   return [...byId.values()].sort((a, b) => (a.id > b.id ? -1 : 1));
 }
 
+/** Current allowlist per agent, replayed from chronological `RecipientSet` events (latest write wins). */
+export function allowlistFromEvents(events: VaultEvent[]): Map<Address, Address[]> {
+  const latest = new Map<string, { agent: Address; recipient: Address; allowed: boolean }>();
+  for (const event of events) {
+    if (event.eventName !== "RecipientSet") continue;
+    const agent = event.args.agent as Address;
+    const recipient = event.args.recipient as Address;
+    latest.set(`${agent}:${recipient}`.toLowerCase(), { agent, recipient, allowed: Boolean(event.args.allowed) });
+  }
+  const byAgent = new Map<Address, Address[]>();
+  for (const { agent, recipient, allowed } of latest.values()) {
+    if (!allowed) continue;
+    const key = agent.toLowerCase() as Address;
+    byAgent.set(key, [...(byAgent.get(key) ?? []), recipient]);
+  }
+  return byAgent;
+}
+
+type TopicMessage = { message: string; sequence_number: number; consensus_timestamp: string };
+
 /** Indexes the intent topic by keccak256(message), the hash the vault stores with each request. */
-export function indexIntents(
-  messages: { message: string; sequence_number: number; consensus_timestamp: string }[],
-): Map<Hex, IntentRecord> {
+export function indexIntents(messages: TopicMessage[]): Map<Hex, IntentRecord> {
   const index = new Map<Hex, IntentRecord>();
   for (const entry of messages) {
     const message = Buffer.from(entry.message, "base64").toString("utf8");
@@ -140,40 +173,35 @@ export function indexIntents(
   return index;
 }
 
-export async function fetchVaultEvents(chainId: number, vault: Address): Promise<VaultEvent[]> {
-  const response = await fetch(`${mirrorNodeUrl(chainId)}/api/v1/contracts/${vault}/results/logs?order=desc&limit=100`);
-  if (!response.ok) throw new Error(`Mirror node returned ${response.status}`);
-  const body = (await response.json()) as { logs: MirrorLog[] };
-  return decodeVaultLogs(body.logs ?? []);
+/** Pages through a mirror-node collection newest first, up to MAX_PAGES, so recent entries are never dropped. */
+async function fetchAllPages<T>(baseUrl: string, path: string, key: string): Promise<T[]> {
+  const items: T[] = [];
+  let next: string | null = path;
+  for (let page = 0; next && page < MAX_PAGES; page++) {
+    const response = await fetch(`${baseUrl}${next}`);
+    if (!response.ok) throw new Error(`Mirror node returned ${response.status}`);
+    const body = (await response.json()) as Record<string, unknown> & { links?: { next: string | null } };
+    items.push(...((body[key] as T[]) ?? []));
+    next = body.links?.next ?? null;
+  }
+  return items;
+}
+
+export async function fetchVaultActivity(chainId: number, vault: Address) {
+  const logs = await fetchAllPages<MirrorLog>(
+    mirrorNodeUrl(chainId),
+    `/api/v1/contracts/${vault}/results/logs?order=desc&limit=100`,
+    "logs",
+  );
+  const events = decodeVaultLogs(logs);
+  return { events, requests: buildRequests(events) };
 }
 
 export async function fetchIntents(chainId: number, topicId: string): Promise<Map<Hex, IntentRecord>> {
-  const response = await fetch(`${mirrorNodeUrl(chainId)}/api/v1/topics/${topicId}/messages?order=desc&limit=100`);
-  if (!response.ok) throw new Error(`Mirror node returned ${response.status}`);
-  const body = (await response.json()) as {
-    messages: { message: string; sequence_number: number; consensus_timestamp: string }[];
-  };
-  return indexIntents(body.messages ?? []);
-}
-
-/** Current allowlist per agent, replayed from `RecipientSet` events (latest write wins). */
-export function allowlistFromEvents(events: VaultEvent[]): Map<Address, Address[]> {
-  const latest = new Map<string, { agent: Address; recipient: Address; allowed: boolean; at: number }>();
-  for (const event of events) {
-    if (event.eventName !== "RecipientSet") continue;
-    const agent = event.args.agent as Address;
-    const recipient = event.args.recipient as Address;
-    const key = `${agent}:${recipient}`.toLowerCase();
-    const previous = latest.get(key);
-    if (!previous || previous.at <= event.timestamp) {
-      latest.set(key, { agent, recipient, allowed: Boolean(event.args.allowed), at: event.timestamp });
-    }
-  }
-  const byAgent = new Map<Address, Address[]>();
-  for (const { agent, recipient, allowed } of latest.values()) {
-    if (!allowed) continue;
-    const key = agent.toLowerCase() as Address;
-    byAgent.set(key, [...(byAgent.get(key) ?? []), recipient]);
-  }
-  return byAgent;
+  const messages = await fetchAllPages<TopicMessage>(
+    mirrorNodeUrl(chainId),
+    `/api/v1/topics/${topicId}/messages?order=desc&limit=100`,
+    "messages",
+  );
+  return indexIntents(messages);
 }

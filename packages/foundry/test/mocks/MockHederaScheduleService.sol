@@ -8,6 +8,7 @@ contract MockHederaScheduleService {
     struct Scheduled {
         address to;
         uint256 expirySecond;
+        uint256 gasLimit;
         bytes callData;
     }
 
@@ -28,16 +29,19 @@ contract MockHederaScheduleService {
         return !noCapacity;
     }
 
-    function scheduleCall(address to, uint256 expirySecond, uint256, uint64, bytes memory callData)
+    function scheduleCall(address to, uint256 expirySecond, uint256 gasLimit, uint64, bytes memory callData)
         external
         returns (int64, address)
     {
         if (failureCode != 0) return (failureCode, address(0));
-        scheduled.push(Scheduled(to, expirySecond, callData));
+        scheduled.push(Scheduled(to, expirySecond, gasLimit, callData));
         return (22, address(uint160(0x5c4ed000 + scheduled.length)));
     }
 
-    function deleteSchedule(address) external pure returns (int64) {
+    mapping(address schedule => bool) public deleted;
+
+    function deleteSchedule(address schedule) external returns (int64) {
+        deleted[schedule] = true;
         return 22;
     }
 
@@ -45,10 +49,10 @@ contract MockHederaScheduleService {
         return scheduled.length;
     }
 
-    /// @notice Executes scheduled call `index` the way the network would at expiry.
+    /// @notice Executes scheduled call `index` the way the network would at expiry, with the requested gas limit.
     function fire(uint256 index) external returns (bool ok, bytes memory ret) {
         Scheduled memory s = scheduled[index];
         require(block.timestamp >= s.expirySecond, "not yet");
-        (ok, ret) = s.to.call(s.callData);
+        (ok, ret) = s.to.call{ gas: s.gasLimit }(s.callData);
     }
 }

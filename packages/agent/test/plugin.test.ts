@@ -59,11 +59,12 @@ describe("guardrails_pay", () => {
     const approval = await toolkit().run(PAY_TOOL, { to: MERCHANT, amountHbar: "50", reason: "new address" });
 
     expect(timelock.humanMessage).toMatch(/TIMELOCK.*veto/);
+    expect(timelock.raw.executeAfter).toBe("2026-09-21T14:18:20.000Z");
     expect(approval.humanMessage).toMatch(/APPROVAL.*No funds moved/);
   });
 
   it("still pays when the vault has no intent topic, without publishing", async () => {
-    vault.intentTopic = 0n;
+    vault.intentTopic_ = 0n;
     const result = await toolkit().run(PAY_TOOL, { to: MERCHANT, amountHbar: "1", reason: "stamps" });
 
     expect(result.raw.status).toBe("SUCCESS");
@@ -105,6 +106,15 @@ describe("guardrails_pay", () => {
 
     expect(result.raw.status).toBe("ERROR");
     expect(result.humanMessage).toContain("blocked by policy");
+    expect(publisher.published).toHaveLength(0);
+    expect(vault.payments).toHaveLength(0);
+  });
+
+  it("publishes nothing when the vault would reject the payment", async () => {
+    vault.paused = true;
+    const result = await toolkit().run(PAY_TOOL, { to: MERCHANT, amountHbar: "1", reason: "stamps" });
+
+    expect(result.raw.status).toBe("ERROR");
     expect(publisher.published).toHaveLength(0);
     expect(vault.payments).toHaveLength(0);
   });

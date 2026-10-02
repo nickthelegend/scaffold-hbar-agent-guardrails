@@ -40,7 +40,7 @@
           "steps": [
             {
               "label": "Run the contract tests (unit + live Chainlink fork)",
-              "command": "{run:foundry:test} && {run:foundry:test:testnet}"
+              "command": "{run:foundry:test} && {run:foundry:test:testnet} --match-path \"test/fork/*\""
             },
             {
               "label": "Start the owner dashboard",

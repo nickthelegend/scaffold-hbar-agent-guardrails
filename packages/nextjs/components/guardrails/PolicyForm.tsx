@@ -53,7 +53,7 @@ export const PolicyForm = ({
     if (!Number.isFinite(vetoSeconds) || vetoSeconds < 0)
       return notification.error("Veto window must be 0 or more minutes");
 
-    await write("setPolicy", [
+    const hash = await write("setPolicy", [
       agentAddress,
       {
         active: true,
@@ -64,7 +64,7 @@ export const PolicyForm = ({
         timelockCapUsd: usd(form.timelockCapUsd),
       },
     ]);
-    onDone?.();
+    if (hash) onDone?.();
   };
 
   const field = (label: string, key: keyof PolicyDefaults, hint: string, suffix = "USD") => (

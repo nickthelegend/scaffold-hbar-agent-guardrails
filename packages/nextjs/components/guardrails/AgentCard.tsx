@@ -90,8 +90,7 @@ export const AgentCard = ({
               onSubmit={async event => {
                 event.preventDefault();
                 if (!isAddress(recipient)) return;
-                await write("setRecipient", [agent, recipient, true]);
-                setRecipient("");
+                if (await write("setRecipient", [agent, recipient, true])) setRecipient("");
               }}
             >
               <input

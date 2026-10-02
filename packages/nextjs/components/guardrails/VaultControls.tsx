@@ -26,8 +26,15 @@ export const VaultControls = ({
   const { targetNetwork } = useTargetNetwork();
 
   // The JSON-RPC relay takes value in weibars (18 decimals); the contract sees tinybars.
-  const fund = () =>
-    transactor(() => sendTransactionAsync({ to: vault, value: parseEther(fundAmount), chainId: targetNetwork.id }));
+  const fund = async () => {
+    try {
+      await transactor(() =>
+        sendTransactionAsync({ to: vault, value: parseEther(fundAmount), chainId: targetNetwork.id }),
+      );
+    } catch {
+      // Rejected or failed; the transactor already showed the reason.
+    }
+  };
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
@@ -42,7 +49,7 @@ export const VaultControls = ({
           />
           <button
             className="btn btn-sm btn-primary join-item"
-            disabled={isFunding || !Number(fundAmount)}
+            disabled={isFunding || !(Number(fundAmount) > 0)}
             onClick={fund}
           >
             Send ℏ
@@ -63,7 +70,7 @@ export const VaultControls = ({
             />
             <button
               className="btn btn-sm join-item"
-              disabled={isPending || !Number(withdrawAmount)}
+              disabled={isPending || !(Number(withdrawAmount) > 0)}
               onClick={() => write("withdraw", [owner, parseUnits(withdrawAmount, 8)])}
             >
               Withdraw
