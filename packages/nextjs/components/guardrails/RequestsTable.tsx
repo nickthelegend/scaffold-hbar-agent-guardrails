@@ -47,6 +47,15 @@ export const RequestsTable = ({
   );
 };
 
+const SETTLEMENT_LABEL: Record<PaymentRequest["state"], string> = {
+  executed: "payment tx",
+  vetoed: "veto tx",
+  rejected: "rejection tx",
+  failed: "failed execution tx",
+  timelocked: "tx",
+  awaitingApproval: "tx",
+};
+
 const RequestRow = ({
   vault,
   request,
@@ -120,7 +129,7 @@ const RequestRow = ({
         </a>
         {request.settledTx && request.settledTx !== request.requestTx && (
           <a className="link" href={`${explorer}/transaction/${request.settledTx}`} target="_blank" rel="noreferrer">
-            settlement tx
+            {SETTLEMENT_LABEL[request.state]}
           </a>
         )}
         {request.schedule && (
