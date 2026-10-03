@@ -141,7 +141,9 @@ export class RpcVaultGateway implements VaultGateway {
       args: [to, amountTinybars, intentHash],
       account: this.account,
     });
-    const txHash = await this.walletClient.writeContract(request);
+    // The relay undercounts gas for calls that reach the Schedule Service, so leave generous headroom.
+    const estimate = await this.publicClient.estimateContractGas(request);
+    const txHash = await this.walletClient.writeContract({ ...request, gas: estimate * 2n });
     const receipt = await this.publicClient.waitForTransactionReceipt({ hash: txHash });
     if (receipt.status !== "success") throw new Error(`pay() reverted in ${txHash}`);
 

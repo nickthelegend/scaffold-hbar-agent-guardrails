@@ -7,7 +7,7 @@ import { GenericContractsDeclaration } from "~~/utils/scaffold-hbar/contract";
 const deployedContracts = {
   296: {
     AgentVaultFactory: {
-      address: "0x0000000000000000000000000000000000000000",
+      address: "0xabb85ef4106814eb8fb0db8f4a857532ae5866c9",
       abi: [
         {
           type: "constructor",
@@ -141,7 +141,7 @@ const deployedContracts = {
         },
       ],
       inheritedFunctions: {},
-      deployedOnBlock: 0,
+      deployedOnBlock: 41310714,
     },
   },
 } as const;

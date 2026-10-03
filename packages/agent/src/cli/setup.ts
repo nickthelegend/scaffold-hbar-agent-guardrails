@@ -7,6 +7,8 @@
  * Usage: OWNER_PRIVATE_KEY=0x... yarn agent:setup
  * Optional env: VAULT_FUND_HBAR (default 100), AGENT_FUND_HBAR (5), PER_TX_USD (1), DAILY_USD (5),
  *               TIMELOCK_CAP_USD (20), VETO_WINDOW_SECONDS (300), FACTORY_ADDRESS
+ * Resuming after a partial run: pass VAULT_ADDRESS (reuses the vault, no new funding), AGENT_PRIVATE_KEY and
+ * AGENT_FUND_HBAR=0 (if the agent is already funded), and DEMO_MERCHANT (if it already exists).
  */
 import { Client, PrivateKey, TopicCreateTransaction } from "@hiero-ledger/sdk";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -57,39 +59,48 @@ async function send(label: string, hash: Hex) {
 
 console.log(`Owner ${owner.address} on ${network}`);
 
-// 1. Vault
-const factory = factoryAddress();
-const createReceipt = await send(
-  `create vault funded with ${env("VAULT_FUND_HBAR", "100")} HBAR`,
-  await wallet.writeContract({
-    address: factory,
-    abi: agentVaultFactoryAbi,
-    functionName: "createVault",
-    value: hbarToWeibars(env("VAULT_FUND_HBAR", "100")),
-  }),
-);
-const created = createReceipt.logs
-  .filter(log => log.address.toLowerCase() === factory.toLowerCase())
-  .map(log => decodeEventLog({ abi: agentVaultFactoryAbi, data: log.data, topics: log.topics }))
-  .find(event => event.eventName === "VaultCreated");
-if (!created) throw new Error("VaultCreated event not found");
-const vault = created.args.vault;
-console.log(`  vault ${vault}`);
+// 1. Vault (or reuse one from a previous, partial run)
+let vault: Address;
+if (process.env.VAULT_ADDRESS?.trim()) {
+  vault = getAddress(process.env.VAULT_ADDRESS.trim());
+  console.log(`  reusing vault ${vault}`);
+} else {
+  const factory = factoryAddress();
+  const createReceipt = await send(
+    `create vault funded with ${env("VAULT_FUND_HBAR", "100")} HBAR`,
+    await wallet.writeContract({
+      address: factory,
+      abi: agentVaultFactoryAbi,
+      functionName: "createVault",
+      value: hbarToWeibars(env("VAULT_FUND_HBAR", "100")),
+    }),
+  );
+  const created = createReceipt.logs
+    .filter(log => log.address.toLowerCase() === factory.toLowerCase())
+    .map(log => decodeEventLog({ abi: agentVaultFactoryAbi, data: log.data, topics: log.topics }))
+    .find(event => event.eventName === "VaultCreated");
+  if (!created) throw new Error("VaultCreated event not found");
+  vault = created.args.vault;
+  console.log(`  vault ${vault}`);
+}
 
 // 2. Agent and merchant accounts (a plain HBAR transfer to a new EVM address auto-creates the account)
 const agentKey = asHex(process.env.AGENT_PRIVATE_KEY?.trim() || generatePrivateKey());
 const agent = privateKeyToAccount(agentKey).address;
-const merchant = getAddress(
-  process.env.DEMO_MERCHANT?.trim() || privateKeyToAccount(generatePrivateKey()).address,
-);
-await send(
-  `fund agent ${agent} with ${env("AGENT_FUND_HBAR", "5")} HBAR for gas`,
-  await wallet.sendTransaction({ to: agent, value: hbarToWeibars(env("AGENT_FUND_HBAR", "5")) }),
-);
-await send(
-  `create demo merchant ${merchant}`,
-  await wallet.sendTransaction({ to: merchant, value: hbarToWeibars("1") }),
-);
+const existingMerchant = process.env.DEMO_MERCHANT?.trim();
+const merchant = getAddress(existingMerchant || privateKeyToAccount(generatePrivateKey()).address);
+if (Number(env("AGENT_FUND_HBAR", "5")) > 0) {
+  await send(
+    `fund agent ${agent} with ${env("AGENT_FUND_HBAR", "5")} HBAR for gas`,
+    await wallet.sendTransaction({ to: agent, value: hbarToWeibars(env("AGENT_FUND_HBAR", "5")) }),
+  );
+}
+if (!existingMerchant) {
+  await send(
+    `create demo merchant ${merchant}`,
+    await wallet.sendTransaction({ to: merchant, value: hbarToWeibars("1") }),
+  );
+}
 
 // 3. Policy
 const policy = {

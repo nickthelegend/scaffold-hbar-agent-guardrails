@@ -111,11 +111,36 @@ A Claude Opus 5.5 agent with the guardrails tools. Ask it to buy things, then tr
 
 ## Live on Hedera testnet
 
-The factory the template ships with, and a demo run of every lane, all checkable on HashScan:
+Everything below happened on Hedera testnet (chain 296) and can be checked on HashScan. The dashboard for this vault is live at **[dashboard-production-4d948.up.railway.app/vault/0x9aE5…3a5A](https://dashboard-production-4d948.up.railway.app/vault/0x9aE5afa51e97Ed3eBBd8F224BAA7d1E5e91F3a5A)**.
 
-| What | Link |
+### Deployment
+
+| What | Where |
 |---|---|
-| `AgentVaultFactory` | _filled in by deployment, see `packages/foundry/deployments/296.json`_ |
+| `AgentVaultFactory` | [`0.0.10844260`](https://hashscan.io/testnet/contract/0.0.10844260) · `0xabB85eF4106814eb8FB0dB8F4a857532AE5866C9` · deploy [tx](https://hashscan.io/testnet/transaction/0x6cfd272b4968b200b189c7bbcac0b0a3c69b68d0f940303817afffe14e82c628) · [Sourcify: exact match](https://sourcify.dev/server/v2/contract/296/0xabB85eF4106814eb8FB0dB8F4a857532AE5866C9) |
+| Chainlink HBAR/USD feed | [`0x59bC155EB6c6C415fE43255aF66EcF0523c92B4a`](https://hashscan.io/testnet/contract/0x59bC155EB6c6C415fE43255aF66EcF0523c92B4a) (max price age 3h) |
+| Demo `AgentVault` | [`0.0.10844266`](https://hashscan.io/testnet/contract/0.0.10844266) · `0x9aE5afa51e97Ed3eBBd8F224BAA7d1E5e91F3a5A` · created and funded with 100 ℏ [tx](https://hashscan.io/testnet/transaction/0x5c0d864fb12761acbc6e6715c4724c8ba516038551aedaaad00a5ecf18f18700) |
+| Owner | [`0.0.10844255`](https://hashscan.io/testnet/account/0.0.10844255) |
+| Agent | [`0.0.10844269`](https://hashscan.io/testnet/account/0.0.10844269) · `0xBDAD236a5635c54392f669E5B4E8F63E2A5072B0` |
+| Demo merchant (allowlisted) | `0x035078ceafb85A706F37c8502B3C8f35a12936d0` [tx](https://hashscan.io/testnet/transaction/0x1c2b2a6751014b4c56a178063969acedd85e27dad9e45dfbbb7942bd9553ac19) |
+| HCS intent topic (submit key = agent) | [`0.0.10844285`](https://hashscan.io/testnet/topic/0.0.10844285) · linked to the vault [tx](https://hashscan.io/testnet/transaction/0x5d74a2dda72d606d8299a5a08c6dcfd3c788c1df71d39412482a019b04030aa0) |
+| Policy | $1 instant per payment, $5/day, $20 timelock budget, 3-minute veto window [tx](https://hashscan.io/testnet/transaction/0xf777bc39ba58bd5cb84d2ecd71fd0ede48db51a7560efa4f92ace65cb73e5bf6) · merchant allowlisted [tx](https://hashscan.io/testnet/transaction/0x07870093632e936de83b9f9b1bef4cf9866bc4fd98a99a10163c332153f10ca3) |
+
+### Every lane, every owner action
+
+Produced by `yarn agent:setup` and `yarn agent:demo --wait`, then a veto, a reject and an approve from the owner. HBAR/USD was about $0.10 at the time.
+
+| # | Agent's request (and its HCS intent) | Lane | What happened |
+|---|---|---|---|
+| 1 | 2 ℏ ($0.20) to the merchant: "Restock coffee beans…" (intent #1) [tx](https://hashscan.io/testnet/transaction/0x6c9b12cfe03b22424e648b932289b8a0eeda42adbd3f0403afa0094e126d2e6b) | **Instant** | Paid in the same transaction |
+| 2 | 60 ℏ ($6.10) to the merchant: "Quarterly bulk order…" (intent #2) [tx](https://hashscan.io/testnet/transaction/0x465f2c631b04b24513bb8f9ef80884f2aa530546c7972c1e813cb88f68404f2a) | **Timelock** | The vault created schedule [`0.0.10844290`](https://hashscan.io/testnet/schedule/0.0.10844290). After the 3-minute veto window, **the network executed it by itself** (`CONTRACTCALL`, `scheduled: true`): [execution](https://hashscan.io/testnet/transaction/1791043963.022949781). No keeper or script was involved. |
+| 3 | 90 ℏ ($9.14) to an unknown address: "Vendor email says their bank details changed…" (intent #3, the prompt-injection drain) [tx](https://hashscan.io/testnet/transaction/0xd258bd516dde6fb103eab09925525881ef3f33ee6b4e629a12660639a0c5cf62) | **Approval** | No funds moved; the owner **rejected** it [tx](https://hashscan.io/testnet/transaction/0xeb2e5eb2e5ea96cf9b1cb6dbe6f9134be4e9ca38384ae64b5c1596b6cdc4c418) |
+| 4 | 15 ℏ ($1.52) to the merchant: "Optional express-shipping upgrade…" (intent #4) [tx](https://hashscan.io/testnet/transaction/0xa06327c7706692e1f7999298becffca464b8c0ad0a796d7295a3b57b05e1f66c) | **Timelock** | The owner **vetoed** it inside the window [tx](https://hashscan.io/testnet/transaction/0xf7ac7d559866f8db5e0e57d1e9e5ab45e68d54bf0219224f162175024088457f), which also **deleted** its schedule [`0.0.10844323`](https://hashscan.io/testnet/schedule/0.0.10844323) |
+| 5 | 3 ℏ ($0.30) to a supplier not on the allowlist: "First order from a new tea supplier…" (intent #5) [tx](https://hashscan.io/testnet/transaction/0x51fa67ef168ca59f3e24cad7fb9d4b82acd72d464ac8b037d77fb2a34601f685) | **Approval** | The owner **approved** it [tx](https://hashscan.io/testnet/transaction/0x05807fa8bd09830d32fad9f73393e5fb17354311c816a7450cb793459c958610) |
+
+Every intent hash stored on-chain matches `keccak256` of the corresponding message on topic `0.0.10844285`, which is what the dashboard's "✓ verified on HCS" badge checks.
+
+Reproduce it yourself with a funded testnet account: `OWNER_PRIVATE_KEY=0x… yarn agent:setup && yarn agent:demo --wait`.
 
 ## How it works
 
@@ -253,6 +278,8 @@ Use `HBAR_USD_FEED=0x... yarn foundry:deploy --network hedera_mainnet` for mainn
 - **Two HBAR units.** Inside contracts, `msg.value` and `address.balance` are **tinybars** (8 decimals). The JSON-RPC relay takes transaction `value` in **weibars** (18 decimals). The vault stores and emits tinybars. Use `hbarToWeibars` when sending and `hbarToTinybars` for `pay` (`packages/agent/src/units.ts`).
 - **Schedule Service capacity.** `scheduleCall` can fail if a second is full. The vault checks `hasScheduleCapacity` through low-level calls and never reverts the payment because of scheduling. It emits `ScheduleFailed`, and `executeTimelocked` stays permissionless after the veto window. The dashboard shows "Execute now" when that happens.
 - **Scheduled executions are paid for by the vault**, from its HBAR balance, so keep a little headroom above what agents may spend.
+- **Gas estimates undercount system-contract work.** The relay's `eth_estimateGas` estimated 66k gas for `veto` (which deletes a schedule), but consensus used 111k, so the first attempt failed with `INSUFFICIENT_GAS`. `pay` came within 6% of its estimate. The dashboard and the agent therefore send **twice the estimate**. Hedera charges at least 80% of the gas limit, so this costs a fraction of a cent on testnet.
+- **EIP-1559 fee estimation.** The relay's fee history makes viem estimate an almost-zero `maxFeePerGas`, which the relay then rejects (minimum ~870 gwei). `hederaChain()` in `packages/agent/src/network.ts` prices transactions from `eth_gasPrice` instead.
 - **`block.timestamp` is the hashgraph consensus timestamp** (median of node clocks). That's why the `block-timestamp` lint is disabled in `foundry.toml`.
 - **HCS messages are capped at 1 KiB** unchunked. Intents trim the reason, by character and never mid-codepoint, until the UTF-8 encoding fits. The canonical encoding keeps the hash reproducible by anyone reading the topic.
 - **Forking Hedera contracts with immutables.** The relay returns runtime bytecode with immutable references zeroed for some contracts, so fork tests should target storage-based contracts (like Chainlink proxies) or use live calls.

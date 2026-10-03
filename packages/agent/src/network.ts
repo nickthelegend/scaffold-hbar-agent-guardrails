@@ -1,4 +1,5 @@
 import { defineChain } from "viem";
+import { getGasPrice } from "viem/actions";
 
 export type HederaNetwork = "testnet" | "mainnet";
 
@@ -31,6 +32,14 @@ export const hederaChain = (network: HederaNetwork, rpcUrl = NETWORKS[network].r
     nativeCurrency: { name: "HBAR", symbol: "HBAR", decimals: 18 },
     rpcUrls: { default: { http: [rpcUrl] } },
     blockExplorers: { default: { name: "HashScan", url: NETWORKS[network].hashscan } },
+    // The relay's fee history makes viem estimate a near-zero EIP-1559 fee, which it then rejects for being
+    // below the network minimum. Price every transaction from eth_gasPrice instead.
+    fees: {
+      async estimateFeesPerGas({ client, type }) {
+        const gasPrice = await getGasPrice(client);
+        return type === "legacy" ? { gasPrice } : { maxFeePerGas: gasPrice, maxPriorityFeePerGas: gasPrice };
+      },
+    },
   });
 
 export const hashscanTx = (network: HederaNetwork, txHash: string) =>

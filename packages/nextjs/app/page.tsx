@@ -42,7 +42,7 @@ const STACK = [
 const Home: NextPage = () => {
   const { address } = useAccount();
   const { data: factory } = useDeployedContractInfo({ contractName: "AgentVaultFactory" });
-  const factoryDeployed = Boolean(factory && factory.address !== zeroAddress);
+  const factoryDeployed = Boolean(factory && (factory.address as string) !== zeroAddress);
   const { data: feed } = useScaffoldReadContract({ contractName: "AgentVaultFactory", functionName: "hbarUsdFeed" });
   const { data: maxPriceAge } = useScaffoldReadContract({
     contractName: "AgentVaultFactory",

@@ -4,7 +4,14 @@ import { topicIdFromNumber } from "@sh/agent/mirror";
 import { weibarsToTinybars } from "@sh/agent/units";
 import { useQuery } from "@tanstack/react-query";
 import type { Abi, Address, ContractFunctionArgs, ContractFunctionName } from "viem";
-import { type UseReadContractReturnType, useBalance, useReadContract, useWriteContract } from "wagmi";
+import {
+  type UseReadContractReturnType,
+  useAccount,
+  useBalance,
+  usePublicClient,
+  useReadContract,
+  useWriteContract,
+} from "wagmi";
 import { useTargetNetwork, useTransactor } from "~~/hooks/scaffold-hbar";
 import { fetchIntents, fetchVaultActivity } from "~~/utils/guardrails/activity";
 
@@ -116,25 +123,39 @@ const NO_REQUESTS: Awaited<ReturnType<typeof fetchVaultActivity>>["requests"] = 
 
 type VaultWriteName = ContractFunctionName<typeof agentVaultAbi, "nonpayable" | "payable">;
 
+/**
+ * The relay's eth_estimateGas undercounts calls that reach Hedera system contracts (e.g. `veto` deleting its
+ * schedule used 111k gas against a 66k estimate), so vault writes send twice the estimate.
+ */
+export const GAS_ESTIMATE_MULTIPLIER = 2n;
+
 /** Writes to a vault with the scaffold's transaction notifications. */
 export function useVaultWrite(vault: Address) {
   const { writeContractAsync, isPending } = useWriteContract();
   const transactor = useTransactor();
   const { targetNetwork } = useTargetNetwork();
+  const publicClient = usePublicClient({ chainId: targetNetwork.id });
+  const { address: account } = useAccount();
 
-  const write = <const TName extends VaultWriteName>(
+  /** Resolves to the tx hash, or undefined if the user rejected or it failed (already shown as a notification). */
+  const write = async <const TName extends VaultWriteName>(
     functionName: TName,
     args: ContractFunctionArgs<typeof agentVaultAbi, "nonpayable" | "payable", TName>,
-  ) =>
-    transactor(() =>
-      writeContractAsync({
-        address: vault,
-        abi: agentVaultAbi,
-        functionName,
-        args,
-        chainId: targetNetwork.id,
-      } as never),
-    );
+  ) => {
+    const call = { address: vault, abi: agentVaultAbi, functionName, args } as never;
+    try {
+      return await transactor(async () => {
+        const estimate = await publicClient!.estimateContractGas({ ...(call as object), account } as never);
+        return writeContractAsync({
+          ...(call as object),
+          chainId: targetNetwork.id,
+          gas: estimate * GAS_ESTIMATE_MULTIPLIER,
+        } as never);
+      });
+    } catch {
+      return undefined;
+    }
+  };
 
   return { write, isPending };
 }
