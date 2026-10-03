@@ -9,7 +9,10 @@ broadcast/
 # Docs
 docs/
 
-deployments/
+# Local deployment records are ignored, except the live testnet factory the template ships with
+# (agent:setup reads it to find AgentVaultFactory).
+deployments/*
+!deployments/296.json
 .env
 localhost.json
 
