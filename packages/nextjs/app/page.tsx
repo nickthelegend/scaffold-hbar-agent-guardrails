@@ -41,7 +41,7 @@ const STACK = [
 
 const Home: NextPage = () => {
   const { address } = useAccount();
-  const { data: factory } = useDeployedContractInfo({ contractName: "AgentVaultFactory" });
+  const { data: factory, isLoading: factoryLoading } = useDeployedContractInfo({ contractName: "AgentVaultFactory" });
   const factoryDeployed = Boolean(factory && (factory.address as string) !== zeroAddress);
   const { data: feed } = useScaffoldReadContract({ contractName: "AgentVaultFactory", functionName: "hbarUsdFeed" });
   const { data: maxPriceAge } = useScaffoldReadContract({
@@ -98,7 +98,9 @@ const Home: NextPage = () => {
       <section id="vaults" className="bg-base-200 w-full">
         <div className="max-w-5xl mx-auto px-5 py-12 space-y-6">
           <h2 className="text-2xl font-bold m-0">Your vaults</h2>
-          {!factoryDeployed ? (
+          {factoryLoading ? (
+            <div className="h-16 rounded-box bg-base-100 animate-pulse" aria-label="Loading vaults" />
+          ) : !factoryDeployed ? (
             <div className="alert alert-warning text-sm">
               AgentVaultFactory is not deployed on this network yet. Run{" "}
               <code>yarn foundry:deploy --network hedera_testnet</code>.
