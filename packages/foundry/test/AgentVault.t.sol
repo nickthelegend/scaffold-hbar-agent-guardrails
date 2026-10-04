@@ -140,16 +140,32 @@ contract AgentVaultTest is Test {
         assertEq(hss.count(), 1);
         (address to, uint256 expiry, uint256 gasLimit,) = hss.scheduled(0);
         assertEq(to, address(vault));
-        assertEq(expiry, block.timestamp + 1 hours);
+        assertEq(
+            expiry, block.timestamp + 1 hours + vault.SCHEDULE_DELAY(), "fires after the veto window, not at its edge"
+        );
         assertEq(gasLimit, vault.SCHEDULE_GAS_LIMIT());
         assertEq(vault.pendingTimelockCount(agent), 1);
         assertEq(vault.pendingTimelockUsd(agent), 5 * USD);
         assertEq(shop.balance, 0);
     }
 
+    /// Hedera's block.timestamp is the start of the ~2s block, so an execution at second T can observe T-2.
+    /// The scheduled execution must still pass its time check when it lands in a block that started 2s earlier.
+    function test_scheduledExecution_toleratesBlockTimestampLag() public {
+        (uint256 id,) = _pay(shop, 50 * HBAR);
+        (, uint256 expiry,,) = hss.scheduled(0);
+        vm.warp(expiry - 2);
+
+        (bool ok,) = address(vault).call(abi.encodeCall(vault.executeTimelocked, (id)));
+
+        assertTrue(ok);
+        assertEq(uint8(_status(id)), uint8(AgentVault.Status.Executed));
+    }
+
     function test_scheduledExecution_paysAfterVetoWindow() public {
         (uint256 id,) = _pay(shop, 50 * HBAR);
-        vm.warp(block.timestamp + 1 hours);
+        (, uint256 expiry,,) = hss.scheduled(0);
+        vm.warp(expiry);
 
         (bool ok,) = hss.fire(0);
 
@@ -169,7 +185,7 @@ contract AgentVaultTest is Test {
         (uint256 id,) = _pay(shop, 50 * HBAR);
         vm.prank(owner);
         vault.veto(id);
-        vm.warp(block.timestamp + 1 hours);
+        vm.warp(block.timestamp + 1 hours + vault.SCHEDULE_DELAY());
 
         (bool ok,) = hss.fire(0);
 

@@ -45,7 +45,7 @@ describe("buildRequests", () => {
       requested(1n, 0, 100),
       // pay() emits PaymentRequested then ExecutionScheduled in the same transaction (same timestamp).
       { ...requested(2n, 1, 110, 410n), index: 0 },
-      log("ExecutionScheduled", { id: 2n, schedule: SCHEDULE, executeAfter: 410n }, 110, "aa", 1),
+      log("ExecutionScheduled", { id: 2n, schedule: SCHEDULE, firesAt: 420n }, 110, "aa", 1),
       requested(3n, 1, 120, 420n),
       log("PaymentVetoed", { id: 3n }, 130),
       requested(4n, 2, 140),

@@ -54,6 +54,19 @@ export const agentVaultAbi = [
   },
   {
     type: "function",
+    name: "SCHEDULE_DELAY",
+    inputs: [],
+    outputs: [
+      {
+        name: "",
+        type: "uint256",
+        internalType: "uint256",
+      },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
     name: "SCHEDULE_GAS_LIMIT",
     inputs: [],
     outputs: [
@@ -684,7 +697,7 @@ export const agentVaultAbi = [
         internalType: "address",
       },
       {
-        name: "executeAfter",
+        name: "firesAt",
         type: "uint256",
         indexed: false,
         internalType: "uint256",

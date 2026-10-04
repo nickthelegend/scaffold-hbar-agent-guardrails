@@ -67,6 +67,10 @@ contract AgentVault is ReentrancyGuard {
     IHederaScheduleService internal constant HSS = IHederaScheduleService(address(0x16b));
     int64 internal constant HSS_SUCCESS = 22;
     uint256 public constant SCHEDULE_GAS_LIMIT = 400_000;
+    /// @notice How long after `executeAfter` the scheduled execution fires. On Hedera, `block.timestamp` is the start
+    ///         of the ~2s block a transaction lands in, so a call executed at second T can observe T-2 and fail a
+    ///         `>= T` check. Firing a few seconds late guarantees the veto window has closed from the EVM's view.
+    uint256 public constant SCHEDULE_DELAY = 10;
     uint256 public constant APPROVAL_TTL = 7 days;
     /// @notice Each timelocked request makes the vault pay for a scheduled transaction, so their number is capped.
     uint256 public constant MAX_PENDING_TIMELOCKS = 10;
@@ -116,7 +120,7 @@ contract AgentVault is ReentrancyGuard {
     event PaymentVetoed(uint256 indexed id);
     event PaymentRejected(uint256 indexed id);
     event PaymentFailed(uint256 indexed id);
-    event ExecutionScheduled(uint256 indexed id, address schedule, uint256 executeAfter);
+    event ExecutionScheduled(uint256 indexed id, address schedule, uint256 firesAt);
     event ScheduleFailed(uint256 indexed id, int64 responseCode);
     event ScheduleCancelled(uint256 indexed id, address schedule, bool deleted);
 
@@ -205,7 +209,7 @@ contract AgentVault is ReentrancyGuard {
             pendingTimelockUsd[msg.sender] += usd;
             pendingTimelockCount[msg.sender] += 1;
             r.status = Status.Timelocked;
-            _scheduleExecution(id, r.executeAfter);
+            _scheduleExecution(id, r.executeAfter + SCHEDULE_DELAY);
         } else {
             r.status = Status.AwaitingApproval;
         }
@@ -403,9 +407,9 @@ contract AgentVault is ReentrancyGuard {
     /// @dev Best effort: if the network has no capacity at that second or scheduling fails, the payment stays
     ///      timelocked and anyone may call `executeTimelocked` after `executeAfter`. Low-level calls are used so a
     ///      missing system contract (e.g. a local chain) returns empty data instead of reverting the payment.
-    function _scheduleExecution(uint256 id, uint256 executeAfter) internal {
+    function _scheduleExecution(uint256 id, uint256 firesAt) internal {
         (bool ok, bytes memory ret) = address(HSS)
-            .staticcall(abi.encodeCall(IHederaScheduleService.hasScheduleCapacity, (executeAfter, SCHEDULE_GAS_LIMIT)));
+            .staticcall(abi.encodeCall(IHederaScheduleService.hasScheduleCapacity, (firesAt, SCHEDULE_GAS_LIMIT)));
         if (!ok || ret.length < 32 || !abi.decode(ret, (bool))) {
             emit ScheduleFailed(id, -1);
             return;
@@ -415,7 +419,7 @@ contract AgentVault is ReentrancyGuard {
         (ok, ret) = address(HSS)
             .call(
                 abi.encodeCall(
-                    IHederaScheduleService.scheduleCall, (address(this), executeAfter, SCHEDULE_GAS_LIMIT, 0, callData)
+                    IHederaScheduleService.scheduleCall, (address(this), firesAt, SCHEDULE_GAS_LIMIT, 0, callData)
                 )
             );
         if (!ok || ret.length < 64) {
@@ -428,6 +432,6 @@ contract AgentVault is ReentrancyGuard {
             return;
         }
         requests[id].schedule = schedule;
-        emit ExecutionScheduled(id, schedule, executeAfter);
+        emit ExecutionScheduled(id, schedule, firesAt);
     }
 }
