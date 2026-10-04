@@ -1,17 +1,18 @@
 {
   "name": "agent-guardrails-static",
-  "description": "Files, manifest and docs that must exist for the Agent Guardrails template.",
+  "description": "Files and docs that must exist in a scaffolded Agent Guardrails project (template.json is consumed and removed by create-scaffold-hbar, so it is not checked here).",
   "jsonAssertions": [
-    { "file": "package.json", "path": "packageManager", "equals": "yarn@3.2.3" },
-    { "file": "template.json", "path": "name", "equals": "agent-guardrails" },
-    { "file": "template.json", "path": "create-scaffold-hbar.capabilities.solidityFramework", "equals": ["foundry"] }
+    {
+      "file": "package.json",
+      "path": "packageManager",
+      "equals": "yarn@3.2.3"
+    }
   ],
   "fileAssertions": {
     "required": [
       "README.md",
       "AGENTS.md",
       "LICENCE",
-      "template.json",
       "packages/foundry/contracts/AgentVault.sol",
       "packages/foundry/contracts/AgentVaultFactory.sol",
       "packages/foundry/test/AgentVault.t.sol",
@@ -24,10 +25,31 @@
       ".harness/spec.yaml",
       ".harness/prd.md"
     ],
-    "forbidden": [".env", "packages/nextjs/.env", "packages/foundry/.env", "packages/agent/.env", "packages/hardhat"]
+    "forbidden": [
+      ".env",
+      "packages/nextjs/.env",
+      "packages/foundry/.env",
+      "packages/agent/.env",
+      "packages/hardhat"
+    ]
   },
   "textAssertions": [
-    { "file": "README.md", "contains": ["npm create scaffold-hbar@latest", "yarn agent:setup", "yarn agent:demo", "hashscan.io/testnet"] },
-    { "file": "AGENTS.md", "contains": ["AgentVault", "tinybars", "yarn foundry:test"] }
+    {
+      "file": "README.md",
+      "contains": [
+        "npm create scaffold-hbar@latest",
+        "yarn agent:setup",
+        "yarn agent:demo",
+        "hashscan.io/testnet"
+      ]
+    },
+    {
+      "file": "AGENTS.md",
+      "contains": [
+        "AgentVault",
+        "tinybars",
+        "yarn foundry:test"
+      ]
+    }
   ]
 }
