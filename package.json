@@ -36,9 +36,9 @@
     "foundry:test:testnet": "yarn workspace @sh/foundry test:testnet",
     "foundry:verify:mainnet": "yarn workspace @sh/foundry verify:mainnet",
     "foundry:verify:testnet": "yarn workspace @sh/foundry verify:testnet",
-    "harness:doctor": "npx -y hedera-harness@1.2.2 doctor",
-    "harness:run": "npx -y hedera-harness@1.2.2 run",
-    "harness:validate": "npx -y hedera-harness@1.2.2 validate",
+    "harness:doctor": "hedera-harness doctor",
+    "harness:run": "hedera-harness run",
+    "harness:validate": "hedera-harness validate",
     "lint": "yarn next:lint && yarn foundry:lint && yarn agent:lint",
     "lint-staged": "lint-staged",
     "next:build": "yarn workspace @sh/nextjs build",
@@ -55,6 +55,7 @@
   },
   "packageManager": "yarn@3.2.3",
   "devDependencies": {
+    "hedera-harness": "1.2.2",
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10",
     "playwright": "^1.56.0"

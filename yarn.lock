@@ -5323,6 +5323,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "agent-guardrails@workspace:."
   dependencies:
+    hedera-harness: 1.2.2
     husky: ^9.1.6
     lint-staged: ^15.2.10
     playwright: ^1.56.0
@@ -8006,6 +8007,25 @@ __metadata:
   dependencies:
     function-bind: ^1.1.2
   checksum: e8516f776a15149ca6c6ed2ae3110c417a00b62260e222590e54aa367cbcd6ed99122020b37b7fbdf05748df57b265e70095d7bf35a47660587619b15ffb93db
+  languageName: node
+  linkType: hard
+
+"hedera-harness@npm:1.2.2":
+  version: 1.2.2
+  resolution: "hedera-harness@npm:1.2.2"
+  dependencies:
+    yaml: ^2.9.0
+  peerDependencies:
+    "@hiero-ledger/sdk": ^2.86.2
+    playwright: ^1.61.1
+  peerDependenciesMeta:
+    "@hiero-ledger/sdk":
+      optional: true
+    playwright:
+      optional: true
+  bin:
+    hedera-harness: dist/index.js
+  checksum: a3033d232d4de0d95da80283a04d313b76c06069b79e61f41034e48fcd1ceb624b5ef03718ea4904f8165cd27a3a25aea925889aa513dde1042a17dbc210eb63
   languageName: node
   linkType: hard
 
@@ -12996,6 +13016,15 @@ __metadata:
   bin:
     yaml: bin.mjs
   checksum: 5ffd9f23bc7a450129cbd49dcf91418988f154ede10c83fd28ab293661ac2783c05da19a28d76a22cbd77828eae25d4bd7453f9a9fe2d287d085d72db46fd105
+  languageName: node
+  linkType: hard
+
+"yaml@npm:^2.9.0":
+  version: 2.9.1
+  resolution: "yaml@npm:2.9.1"
+  bin:
+    yaml: bin.mjs
+  checksum: 583253ce0075cc1b7a4328116380ae2a97d6feb62677ba5d52f7cb774de6e34f1d9e655aaa536347ced55fcaede020253212d1c60c98fc672d43be23ebfcd862
   languageName: node
   linkType: hard
 
