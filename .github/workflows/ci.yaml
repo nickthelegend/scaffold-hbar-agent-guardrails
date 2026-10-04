@@ -23,6 +23,9 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          # Newer forge sends block tags as EIP-1898 objects, which Hedera's JSON-RPC relay rejects on fork tests.
+          version: v1.7.1
 
       - name: Install dependencies
         run: yarn install --immutable
