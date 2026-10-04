@@ -16,7 +16,7 @@ agent framework do not help once the key itself is compromised. Owners need spen
      `dailyLimitUsd` → paid in the same transaction;
    - **timelock**: recipient allowed, price fresh, outstanding timelocked USD within `timelockCapUsd`, veto window
      > 0 → the vault schedules `executeTimelocked(id)` via the Hedera Schedule Service (0x16b) at
-     `now + vetoWindow`; the owner can `veto` until then; execution is permissionless afterwards;
+     `now + vetoWindow + SCHEDULE_DELAY` (10 s, because Hedera's `block.timestamp` is the block's start time); the owner can `veto` until then; execution is permissionless afterwards;
    - **approval**: everything else, including a stale or failing oracle → waits for `approve`/`reject`
      (expires after 7 days).
 3. `worstCaseDailyExposureUsd(agent)` exposes the unattended worst case.

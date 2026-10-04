@@ -139,7 +139,7 @@ const RequestRow = ({
             target="_blank"
             rel="noreferrer"
           >
-            Hedera schedule {shortHex(request.schedule)}
+            Hedera schedule {entityIdFromAddress(request.schedule)}
           </a>
         )}
         {windowOpen && (

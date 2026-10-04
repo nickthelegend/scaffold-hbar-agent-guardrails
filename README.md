@@ -16,6 +16,8 @@ npm create scaffold-hbar@latest -- --template nickthelegend/scaffold-hbar-agent-
 
 The agent also publishes its reasoning for every payment to an **HCS topic** only it can write to, and the vault stores the `keccak256` of that message. The dashboard shows "✓ verified on HCS" next to each payment, so you always know *why* your agent spent.
 
+**Live:** [agent-guardrails.up.railway.app](https://agent-guardrails.up.railway.app/vault/0xC3d9Fcb5Dd342BDD5dd54254Ba6bd2dA9a426513) · factory [`0.0.10853767`](https://hashscan.io/testnet/contract/0.0.10853767) on Hedera testnet
+
 ---
 
 ## Contents
@@ -111,7 +113,7 @@ A Claude Opus 5.5 agent with the guardrails tools. Ask it to buy things, then tr
 
 ## Live on Hedera testnet
 
-Everything below happened on Hedera testnet (chain 296) and can be checked on HashScan. The dashboard for this vault is live at **[dashboard-production-4d948.up.railway.app/vault/0xC3d9…6513](https://dashboard-production-4d948.up.railway.app/vault/0xC3d9Fcb5Dd342BDD5dd54254Ba6bd2dA9a426513)**.
+Everything below happened on Hedera testnet (chain 296) and can be checked on HashScan. The dashboard for this vault is live at **[agent-guardrails.up.railway.app/vault/0xC3d9…6513](https://agent-guardrails.up.railway.app/vault/0xC3d9Fcb5Dd342BDD5dd54254Ba6bd2dA9a426513)**.
 
 ### Deployment
 
