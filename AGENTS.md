@@ -23,7 +23,7 @@ yarn test                 # foundry + agent + frontend unit tests
 
 yarn foundry:compile
 yarn foundry:test                                     # unit + fuzz
-yarn foundry:test:testnet --match-path "test/fork/*"  # live Chainlink feed (unit suites also run on a fork)
+yarn foundry:test:testnet --match-path "test/fork/*"  # live Chainlink feed (unit suites also run on a fork) ; needs forge v1.7.1 (1.8.x breaks Hashio forks)
 yarn foundry:deploy --network hedera_testnet          # regenerates packages/nextjs/contracts/deployedContracts.ts
 
 yarn workspace @sh/agent sync-abi   # after changing contracts: copy ABIs into packages/agent/src/abi.ts

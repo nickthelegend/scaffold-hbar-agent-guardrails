@@ -277,6 +277,7 @@ Use `HBAR_USD_FEED=0x... yarn foundry:deploy --network hedera_mainnet` for mainn
 
 ## Hedera specifics worth knowing
 
+- **Pin Foundry to v1.7.1 for fork tests.** Forge 1.8.x sends block tags as EIP-1898 objects, which Hedera's JSON-RPC relay (Hashio) rejects with `HTTP 400 … Expected 0x prefixed hexadecimal block number`. CI pins `foundry-toolchain` to `v1.7.1`; locally, run `foundryup --install v1.7.1` if `yarn foundry:test:testnet` fails that way.
 - **Two HBAR units.** Inside contracts, `msg.value` and `address.balance` are **tinybars** (8 decimals). The JSON-RPC relay takes transaction `value` in **weibars** (18 decimals). The vault stores and emits tinybars. Use `hbarToWeibars` when sending and `hbarToTinybars` for `pay` (`packages/agent/src/units.ts`).
 - **Schedule Service capacity.** `scheduleCall` can fail if a second is full. The vault checks `hasScheduleCapacity` through low-level calls and never reverts the payment because of scheduling. It emits `ScheduleFailed`, and `executeTimelocked` stays permissionless after the veto window. The dashboard shows "Execute now" when that happens.
 - **Scheduled executions are paid for by the vault**, from its HBAR balance, so keep a little headroom above what agents may spend.
