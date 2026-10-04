@@ -105,6 +105,12 @@
     margin: 1rem 0;
   }
 
+  html,
+  body {
+    /* Hidden tooltips and modal overlays sized to 100vw would otherwise add a sideways scroll on phones. */
+    overflow-x: clip;
+  }
+
   body {
     min-height: 100vh;
     font-family: "Styrene A Web", "Montserrat", ui-sans-serif, system-ui, sans-serif;

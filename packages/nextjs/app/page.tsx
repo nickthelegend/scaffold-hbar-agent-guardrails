@@ -4,12 +4,23 @@ import { useState } from "react";
 import Link from "next/link";
 import type { NextPage } from "next";
 import { type Address, decodeEventLog, parseEther, zeroAddress } from "viem";
+import { hederaTestnet } from "viem/chains";
 import { useAccount, usePublicClient } from "wagmi";
 import { PriceTicker } from "~~/components/guardrails/PriceTicker";
 import { RainbowKitCustomConnectButton } from "~~/components/scaffold-hbar";
 import { useVaultBalance } from "~~/hooks/guardrails";
-import { useDeployedContractInfo, useScaffoldReadContract, useScaffoldWriteContract } from "~~/hooks/scaffold-hbar";
+import {
+  useDeployedContractInfo,
+  useScaffoldReadContract,
+  useScaffoldWriteContract,
+  useTargetNetwork,
+} from "~~/hooks/scaffold-hbar";
 import { formatHbar, shortHex } from "~~/utils/guardrails/format";
+
+/** Vaults with real history from the README's live run, so visitors can see every lane without creating one. */
+const DEMO_VAULTS: Record<number, Address> = {
+  [hederaTestnet.id]: "0xC3d9Fcb5Dd342BDD5dd54254Ba6bd2dA9a426513",
+};
 
 const LANES = [
   {
@@ -41,6 +52,8 @@ const STACK = [
 
 const Home: NextPage = () => {
   const { address } = useAccount();
+  const { targetNetwork } = useTargetNetwork();
+  const demoVault = DEMO_VAULTS[targetNetwork.id];
   const { data: factory, isLoading: factoryLoading } = useDeployedContractInfo({ contractName: "AgentVaultFactory" });
   const factoryDeployed = Boolean(factory && (factory.address as string) !== zeroAddress);
   const { data: feed } = useScaffoldReadContract({ contractName: "AgentVaultFactory", functionName: "hbarUsdFeed" });
@@ -70,6 +83,14 @@ const Home: NextPage = () => {
               </a>
             ) : (
               <RainbowKitCustomConnectButton />
+            )}
+            {demoVault && (
+              <Link
+                href={`/vault/${demoVault}`}
+                className="btn btn-outline text-white border-white/40 hover:bg-white/10"
+              >
+                See the live demo vault →
+              </Link>
             )}
             <span className="rounded-full bg-white/10 px-3 py-1">
               <PriceTicker feed={feed} maxAge={maxPriceAge} />

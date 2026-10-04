@@ -30,6 +30,9 @@ import { NETWORKS, hashscanTopic, hederaChain, type HederaNetwork } from "../net
 import { asHex, requireEnv } from "../runtime";
 import { hbarToWeibars, usdToMicros } from "../units";
 
+const OWNER_KEY_HINT =
+  "Pass the ECDSA key of a funded testnet account inline: OWNER_PRIVATE_KEY=0x… yarn agent:setup (free testnet HBAR: https://portal.hedera.com/faucet). Never commit it.";
+
 const here = dirname(fileURLToPath(import.meta.url));
 const packageRoot = join(here, "..", "..");
 const network = (process.env.HEDERA_NETWORK ?? "testnet") as HederaNetwork;
@@ -46,7 +49,7 @@ function factoryAddress(): Address {
   return getAddress(match[0]);
 }
 
-const owner = privateKeyToAccount(asHex(requireEnv("OWNER_PRIVATE_KEY")));
+const owner = privateKeyToAccount(asHex(requireEnv("OWNER_PRIVATE_KEY", OWNER_KEY_HINT)));
 const publicClient = createPublicClient({ chain, transport: http() });
 const wallet = createWalletClient({ chain, transport: http(), account: owner });
 
@@ -121,7 +124,7 @@ const ownerAccountId =
   process.env.OWNER_ACCOUNT_ID?.trim() || (await accountIdForAddress(network, owner.address));
 const hedera = Client.forName(network).setOperator(
   ownerAccountId,
-  PrivateKey.fromStringECDSA(asHex(requireEnv("OWNER_PRIVATE_KEY")).slice(2)),
+  PrivateKey.fromStringECDSA(asHex(requireEnv("OWNER_PRIVATE_KEY", OWNER_KEY_HINT)).slice(2)),
 );
 const topicReceipt = await (
   await new TopicCreateTransaction()

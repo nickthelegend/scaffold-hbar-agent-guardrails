@@ -55,6 +55,7 @@
   },
   "packageManager": "yarn@3.2.3",
   "devDependencies": {
+    "@hiero-ledger/sdk": "^2.86.2",
     "hedera-harness": "1.2.2",
     "husky": "^9.1.6",
     "lint-staged": "^15.2.10",

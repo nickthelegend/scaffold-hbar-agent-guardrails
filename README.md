@@ -1,5 +1,7 @@
 # Agent Guardrails
 
+[![CI](https://github.com/nickthelegend/scaffold-hbar-agent-guardrails/actions/workflows/ci.yaml/badge.svg)](https://github.com/nickthelegend/scaffold-hbar-agent-guardrails/actions/workflows/ci.yaml) [![Live on Vercel](https://img.shields.io/badge/live-scaffold--hbar--agent--guardrails.vercel.app-000?logo=vercel)](https://scaffold-hbar-agent-guardrails.vercel.app) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENCE)
+
 **Give your AI agent a wallet it can't drain.**
 
 A [Scaffold-HBAR](https://github.com/hedera-dev/scaffold-hbar) template for letting AI agents spend money on Hedera under rules the chain enforces. A human funds an `AgentVault` and authorises agents with **USD limits**. Every payment an agent makes is priced by **Chainlink**, then routed by the contract into one of three lanes. A prompt-injected agent, or one whose key has been stolen, can only move what the policy allows.
@@ -17,6 +19,8 @@ npm create scaffold-hbar@latest -- --template nickthelegend/scaffold-hbar-agent-
 The agent also publishes its reasoning for every payment to an **HCS topic** only it can write to, and the vault stores the `keccak256` of that message. The dashboard shows "✓ verified on HCS" next to each payment, so you always know *why* your agent spent.
 
 **Live:** [scaffold-hbar-agent-guardrails.vercel.app](https://scaffold-hbar-agent-guardrails.vercel.app/vault/0xC3d9Fcb5Dd342BDD5dd54254Ba6bd2dA9a426513) · factory [`0.0.10853767`](https://hashscan.io/testnet/contract/0.0.10853767) on Hedera testnet
+
+**Demo video:** _coming soon_ <!-- paste the video URL here (GitHub user-attachments, YouTube or Loom, so it plays inline) -->
 
 ---
 
@@ -68,7 +72,7 @@ yarn install        # the CLI already ran this unless you passed --skip-install
 ### 2. Run the tests
 
 ```bash
-yarn foundry:test                                    # 33 unit + fuzz tests for AgentVault
+yarn foundry:test                                    # 34 unit + fuzz tests for AgentVault
 yarn foundry:test:testnet --match-path "test/fork/*" # prices against the live Chainlink HBAR/USD feed
 yarn agent:test                                      # Agent Kit plugin, intent hashing, Claude toolkit
 yarn next:test                                       # dashboard activity-feed decoding
@@ -314,6 +318,8 @@ Use `HBAR_USD_FEED=0x... yarn foundry:deploy --network hedera_mainnet` for mainn
 yarn harness:doctor     # checks the recipe and the host
 yarn harness:validate   # runs Tiers 0–2 against this project
 ```
+
+`harness:doctor` also checks Tier 3.5's prerequisites, so it exits non-zero until `HEDERA_OPERATOR_ID` and `HEDERA_OPERATOR_KEY` (a funded testnet account) are set in your shell. `harness:validate` doesn't need them.
 
 On a fresh scaffold (4 Oct 2026), `yarn harness:validate` reports **`passed=true`, 0 findings**:
 - static checks pass;

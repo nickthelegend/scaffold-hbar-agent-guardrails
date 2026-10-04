@@ -3,7 +3,7 @@
 import { use, useMemo } from "react";
 import Link from "next/link";
 import { type Address, getAddress, isAddress } from "viem";
-import { useAccount } from "wagmi";
+import { useAccount, useBytecode } from "wagmi";
 import { AgentCard } from "~~/components/guardrails/AgentCard";
 import { PolicyForm } from "~~/components/guardrails/PolicyForm";
 import { PriceTicker } from "~~/components/guardrails/PriceTicker";
@@ -35,7 +35,10 @@ const Vault = ({ vault }: { vault: Address }) => {
   const { targetNetwork } = useTargetNetwork();
   const explorer = targetNetwork.blockExplorers?.default.url;
 
-  const { data: owner, isError: notAVault } = useVaultRead(vault, "owner");
+  // Hashio answers owner() on an EOA with "0x" rather than an error, so check for contract code first and render
+  // nothing that can move funds (like "Fund vault") until the address is known to be an AgentVault.
+  const { data: code, isLoading: codeLoading } = useBytecode({ address: vault, chainId: targetNetwork.id });
+  const { data: owner, isError: ownerError } = useVaultRead(vault, "owner");
   const { data: paused } = useVaultRead(vault, "paused");
   const { data: agents } = useVaultRead(vault, "agents");
   const { data: feed } = useVaultRead(vault, "hbarUsdFeed");
@@ -50,12 +53,23 @@ const Vault = ({ vault }: { vault: Address }) => {
   const vaultUsd = balanceQuote?.[0] ? balanceQuote[1] : undefined;
   const pending = activity.requests.filter(r => r.state === "timelocked" || r.state === "awaitingApproval").length;
 
-  if (notAVault) {
+  const hasCode = Boolean(code && code !== "0x");
+  if ((!codeLoading && !hasCode) || ownerError) {
     return (
-      <div className="max-w-3xl mx-auto p-10 text-center">
-        <p className="text-lg">
+      <div className="max-w-3xl mx-auto p-10 text-center space-y-4">
+        <p className="text-lg m-0">
           No AgentVault at {vault} on {targetNetwork.name}.
         </p>
+        <Link href="/" className="btn btn-primary btn-sm">
+          Back to your vaults
+        </Link>
+      </div>
+    );
+  }
+  if (!hasCode || !owner) {
+    return (
+      <div className="w-full max-w-6xl mx-auto px-4 py-8">
+        <div className="h-48 rounded-box bg-base-200 animate-pulse" aria-label="Loading vault" />
       </div>
     );
   }
@@ -84,8 +98,10 @@ const Vault = ({ vault }: { vault: Address }) => {
             <a className="link text-sm" href={`${explorer}/topic/${activity.topicId}`} target="_blank" rel="noreferrer">
               Intent log: HCS topic {activity.topicId}
             </a>
-          ) : (
+          ) : intentTopic === 0n ? (
             <span className="text-sm text-base-content/60">No HCS intent topic set</span>
+          ) : (
+            <span className="h-4 w-40 rounded bg-base-200 animate-pulse" aria-label="Loading intent topic" />
           )}
         </div>
         <VaultControls vault={vault} owner={owner} isOwner={isOwner} paused={paused} />
@@ -133,7 +149,8 @@ const Vault = ({ vault }: { vault: Address }) => {
               </div>
             </div>
           )}
-          {!isOwner && (agents ?? []).length === 0 && (
+          {agents === undefined && <div className="h-40 rounded-box bg-base-200 animate-pulse" />}
+          {!isOwner && agents !== undefined && agents.length === 0 && (
             <p className="text-sm text-base-content/60">No agents authorised yet.</p>
           )}
         </div>

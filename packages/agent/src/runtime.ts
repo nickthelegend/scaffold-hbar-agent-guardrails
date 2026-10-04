@@ -15,13 +15,21 @@ import { RpcVaultGateway } from "./vault";
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 loadEnv({ path: join(packageRoot, ".env") });
 
-export function requireEnv(name: string): string {
+/** A missing setting. The CLIs print its message as one actionable line instead of a stack trace. */
+export class ConfigError extends Error {}
+
+// This module is only loaded by the CLIs (it is not exported from the package), so it owns their error output.
+process.on("uncaughtException", error => {
+  console.error(error instanceof ConfigError ? `\n${error.message}\n` : error);
+  process.exit(1);
+});
+
+export function requireEnv(
+  name: string,
+  hint = "Copy packages/agent/.env.example to packages/agent/.env, or run `yarn agent:setup` to write it.",
+): string {
   const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(
-      `Missing ${name}. Copy packages/agent/.env.example to packages/agent/.env (or run \`yarn agent:setup\`).`,
-    );
-  }
+  if (!value) throw new ConfigError(`Missing ${name}. ${hint}`);
   return value;
 }
 
