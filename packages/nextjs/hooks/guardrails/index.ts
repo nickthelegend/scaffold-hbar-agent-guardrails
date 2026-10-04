@@ -112,6 +112,8 @@ export function useVaultActivity(vault: Address, intentTopic: bigint | undefined
     events: activity.data?.events ?? NO_EVENTS,
     requests: activity.data?.requests ?? NO_REQUESTS,
     intents: intents.data,
+    // True until we know the topic and have read it, so rows don't claim "no matching intent" in the meantime.
+    intentsLoading: intentTopic === undefined || (Boolean(topicId) && intents.isPending),
     topicId,
     isLoading: activity.isLoading,
     error: activity.error ?? intents.error,

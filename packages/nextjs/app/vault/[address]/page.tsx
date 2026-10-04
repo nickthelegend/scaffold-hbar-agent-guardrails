@@ -19,8 +19,8 @@ export default function VaultPage({ params }: { params: Promise<{ address: strin
   const { address } = use(params);
   if (!isAddress(address)) {
     return (
-      <div className="max-w-3xl mx-auto p-10 text-center">
-        <p className="text-lg">“{address}” is not a vault address.</p>
+      <div className="max-w-3xl mx-auto p-4 sm:p-10 text-center">
+        <p className="text-lg break-all">“{address}” is not a vault address.</p>
         <Link href="/" className="btn btn-primary btn-sm mt-4">
           Back to your vaults
         </Link>
@@ -56,8 +56,8 @@ const Vault = ({ vault }: { vault: Address }) => {
   const hasCode = Boolean(code && code !== "0x");
   if ((!codeLoading && !hasCode) || ownerError) {
     return (
-      <div className="max-w-3xl mx-auto p-10 text-center space-y-4">
-        <p className="text-lg m-0">
+      <div className="max-w-3xl mx-auto p-4 sm:p-10 text-center space-y-4">
+        <p className="text-lg m-0 break-all">
           No AgentVault at {vault} on {targetNetwork.name}.
         </p>
         <Link href="/" className="btn btn-primary btn-sm">
@@ -119,6 +119,7 @@ const Vault = ({ vault }: { vault: Address }) => {
           vault={vault}
           requests={activity.requests}
           intents={activity.intents}
+          intentsLoading={activity.intentsLoading}
           topicId={activity.topicId}
           isOwner={isOwner}
           isLoading={activity.isLoading}

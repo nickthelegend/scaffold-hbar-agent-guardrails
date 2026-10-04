@@ -10,7 +10,9 @@ export const metadata = getMetadata({
 const Debug: NextPage = () => {
   return (
     <>
-      <DebugContracts />
+      <div className="overflow-x-hidden">
+        <DebugContracts />
+      </div>
       <div className="text-center mt-8 bg-secondary p-10">
         <h1 className="text-4xl my-0">Debug Contracts</h1>
         <p className="text-neutral">

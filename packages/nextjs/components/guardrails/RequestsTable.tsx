@@ -11,6 +11,7 @@ export const RequestsTable = ({
   vault,
   requests,
   intents,
+  intentsLoading,
   topicId,
   isOwner,
   isLoading,
@@ -18,6 +19,7 @@ export const RequestsTable = ({
   vault: Address;
   requests: PaymentRequest[];
   intents?: Map<Hex, IntentRecord>;
+  intentsLoading: boolean;
   topicId?: string;
   isOwner: boolean;
   isLoading: boolean;
@@ -39,6 +41,7 @@ export const RequestsTable = ({
           vault={vault}
           request={request}
           intent={intents?.get(request.intentHash)}
+          intentsLoading={intentsLoading}
           topicId={topicId}
           isOwner={isOwner}
         />
@@ -60,12 +63,14 @@ const RequestRow = ({
   vault,
   request,
   intent,
+  intentsLoading,
   topicId,
   isOwner,
 }: {
   vault: Address;
   request: PaymentRequest;
   intent?: IntentRecord;
+  intentsLoading: boolean;
   topicId?: string;
   isOwner: boolean;
 }) => {
@@ -114,6 +119,8 @@ const RequestRow = ({
               ✓ verified on HCS #{intent.sequenceNumber}
             </a>
           </p>
+        ) : intentsLoading ? (
+          <p className="m-0 text-base-content/50">Checking HCS…</p>
         ) : (
           <p className="m-0 text-base-content/60">
             {topicId

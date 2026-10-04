@@ -55,7 +55,7 @@ This template moves the policy **on-chain**, next to the money:
 
 ### Prerequisites
 
-- Node.js ≥ 20.18.3 and Yarn (`corepack enable`)
+- Node.js ≥ 20.19.0 (CI uses 22) and Yarn (`corepack enable`)
 - [Foundry](https://book.getfoundry.sh/getting-started/installation) (`curl -L https://foundry.paradigm.xyz | bash && foundryup`)
 - Git
 - For the agent demo: a funded **ECDSA** testnet account from the [Hedera Portal faucet](https://portal.hedera.com/faucet)
