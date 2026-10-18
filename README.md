@@ -20,7 +20,7 @@ The agent also publishes its reasoning for every payment to an **HCS topic** onl
 
 **Live:** [scaffold-hbar-agent-guardrails.vercel.app](https://scaffold-hbar-agent-guardrails.vercel.app/vault/0xC3d9Fcb5Dd342BDD5dd54254Ba6bd2dA9a426513) · factory [`0.0.10853767`](https://hashscan.io/testnet/contract/0.0.10853767) on Hedera testnet
 
-**Demo video:** _coming soon_ <!-- paste the video URL here (GitHub user-attachments, YouTube or Loom, so it plays inline) -->
+**Demo video:** [watch (72 s)](https://agent-guardrails-demo.vercel.app) · [mp4](https://agent-guardrails-demo.vercel.app/agent-guardrails-demo.mp4)
 
 ---
 
